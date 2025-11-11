@@ -1,0 +1,385 @@
+syntax = "proto3";
+
+package supplierproduct;
+
+// Enums
+enum ProductStatus {
+  PRODUCT_STATUS_UNSPECIFIED = 0;
+  PRODUCT_STATUS_DRAFT = 1;           // Bản nháp - Supplier đang tạo/chỉnh sửa
+  PRODUCT_STATUS_PUBLISHED = 2;       // Đã xuất bản - Sẵn sàng để bán
+  PRODUCT_STATUS_OUT_OF_STOCK = 3;    // Hết hàng - Tạm thời không có hàng
+  PRODUCT_STATUS_DELETED = 4;         // Đã xóa - Không còn tồn tại
+}
+
+enum ApprovalStatus {
+  APPROVAL_STATUS_UNSPECIFIED = 0;
+  APPROVAL_STATUS_PENDING = 1;         // Chờ phê duyệt - Admin chưa xem xét
+  APPROVAL_STATUS_APPROVED = 2;        // Đã phê duyệt - Có thể hiển thị trên sàn
+  APPROVAL_STATUS_REJECTED = 3;        // Bị từ chối - Không được phép bán
+}
+
+enum ProductType {
+  PRODUCT_TYPE_UNSPECIFIED = 0;
+  PRODUCT_TYPE_PHYSICAL = 1;
+  PRODUCT_TYPE_DIGITAL = 2;
+  PRODUCT_TYPE_SERVICE = 3;
+}
+
+// Product message definitions
+message Product {
+  string id = 1;
+  string supplierId = 2;
+  string name = 3;
+  string description = 4;
+  string shortDescription = 5;
+  string sku = 6;
+  string categoryName = 7;
+  ProductPrice price = 8;
+  ProductInventory inventory = 9;
+  ProductSpecifications specifications = 10;
+  ProductType type = 11;
+  ProductStatus status = 12;
+  ApprovalStatus approvalStatus = 13;
+  repeated ProductImage images = 14;
+  repeated ProductReview reviews = 15;
+  repeated string tags = 16;
+  bool isActive = 17;
+  bool isFeatured = 18;
+  bool isSuspend = 19;        // Admin có thể khóa sản phẩm khi có vấn đề
+  double weight = 20;
+  ProductDimensions dimensions = 21;
+  ProductSEO seoData = 22;
+  string createdAt = 23;
+  string updatedAt = 24;
+  string approvedAt = 25;
+  string approvedBy = 26;
+  string rejectionReason = 27;
+}
+
+message ProductCategory {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  string parentId = 4;
+  int32 level = 5;
+  bool isActive = 6;
+  int32 sortOrder = 7;
+  string imageUrl = 8;
+  string seoSlug = 9;
+  string metaTitle = 10;
+  string metaDescription = 11;
+}
+
+message ProductPrice {
+  double listingPrice = 1;
+  double retailPrice = 2;
+  string currency = 3;
+  double profitAmount = 4;
+}
+
+message ProductInventory {
+  int32 quantity = 1;
+}
+
+message ProductSpecifications {
+  map<string, string> specifications = 1;
+  repeated string materials = 2;
+  repeated string colors = 3;
+  repeated string sizes = 4;
+}
+
+message ProductDimensions {
+  double length = 1;
+  double width = 2;
+  double height = 3;
+  string unit = 4;
+}
+
+// ProductWeight removed
+
+message ProductImage {
+  string id = 1;
+  string productId = 2;
+  string url = 3;
+  string altText = 4;
+  int32 sortOrder = 5;
+  bool isPrimary = 6;
+  int32 width = 7;
+  int32 height = 8;
+  int64 fileSize = 9;
+  string mimeType = 10;
+}
+
+message ProductReview {
+  string id = 1;
+  string productId = 2;
+  string customerId = 3;
+  int32 rating = 4;
+  string title = 5;
+  string comment = 6;
+  bool isVerified = 7;
+  bool isPublished = 8;
+  int32 helpfulCount = 9;
+  string createdAt = 10;
+  string updatedAt = 11;
+}
+
+// ProductShippingInfo removed
+
+message ProductSEO {
+  string metaTitle = 1;
+  string metaDescription = 2;
+  repeated string keywords = 3;
+}
+
+// Request/Response messages
+message CreateSupplierProductRequest {
+  string supplierId = 1;
+  string name = 2;
+  string description = 3;
+  string shortDescription = 4;
+  string sku = 5;
+  string categoryName = 6;
+  ProductPrice price = 7;
+  ProductInventory inventory = 8;
+  ProductSpecifications specifications = 9;
+  ProductType type = 10;
+  repeated string tags = 11;
+  bool isActive = 12;
+  bool isFeatured = 13;
+  double weight = 14;
+  ProductDimensions dimensions = 15;
+  ProductSEO seoData = 16;
+  repeated ProductImage images = 17;
+}
+
+message UpdateSupplierProductRequest {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  string shortDescription = 4;
+  string sku = 5;
+  string categoryName = 6;
+  ProductPrice price = 7;
+  ProductInventory inventory = 8;
+  ProductSpecifications specifications = 9;
+  ProductType type = 10;
+  repeated string tags = 11;
+  bool isActive = 12;
+  bool isFeatured = 13;
+  double weight = 14;
+  ProductDimensions dimensions = 15;
+  ProductSEO seoData = 16;
+  repeated ProductImage images = 17;
+}
+
+message GetSupplierProductRequest {
+  string id = 1;
+}
+
+message GetSupplierProductsRequest {
+  int32 page = 1;
+  int32 limit = 2;
+  ProductStatus status = 3;
+  ApprovalStatus approvalStatus = 4;
+  string supplierId = 5;
+  string categoryId = 6;
+  ProductType type = 7;
+  double minPrice = 8;
+  double maxPrice = 9;
+  repeated string tags = 10;
+  string search = 11;
+  bool isActive = 12;
+  bool isFeatured = 13;
+  bool isSuspend = 14; // optional: filter locked products
+}
+
+message ApproveSupplierProductRequest {
+  string id = 1;
+  string approvedBy = 2;
+}
+
+message RejectSupplierProductRequest {
+  string id = 1;
+  string reason = 2;
+  string rejectedBy = 3;
+}
+
+message HideSupplierProductRequest {
+  string id = 1;
+  string reason = 2;
+  string hiddenBy = 3;
+}
+
+message SuspendSupplierProductRequest {
+  string id = 1;
+  string reason = 2;
+  string suspendedBy = 3;
+  int32 suspensionDuration = 4; // in days, optional
+}
+
+
+message UnhideSupplierProductRequest {
+  string id = 1;
+  string unhiddenBy = 2;
+}
+
+// =============== Admin Suspend Management ===============
+
+message UnsuspendSupplierProductRequest {
+  string id = 1;
+  string reason = 2;
+  string unsuspendedBy = 3;
+}
+
+// =============== Supplier Management Requests ===============
+message GetSupplierProductStatsRequest {
+  string supplierId = 1;
+}
+
+message GetSupplierProductsByIdsRequest {
+  repeated string productIds = 1;
+}
+
+message SupplierProductStatsResponse {
+  bool success = 1;
+  string message = 2;
+  SupplierProductStats data = 3;
+}
+
+message SupplierProductStats {
+  // Approval + admin lock
+  int32 approved = 1;
+  int32 pending = 2;
+  int32 rejected = 3;
+  int32 suspend = 4;
+  // Inventory KPIs
+  int32 totalProducts = 5;
+  int32 totalStock = 6;
+  int32 lowStockAlert = 7; // quantity in (1..threshold]
+  int32 outOfStock = 8;    // quantity == 0
+}
+
+// =============== Seller View DTOs ===============
+message SellerViewPrice {
+  double listingPrice = 1;
+  double retailPrice = 2;
+  string currency = 3;
+  double profitAmount = 4;
+}
+
+message ReviewSummary {
+  int32 count = 1;
+  double averageRating = 2;
+}
+
+message SellerProductSellerViewItem {
+  string id = 1;
+  string name = 2;
+  string shortDescription = 3;
+  SellerViewPrice price = 4;
+  string categoryName = 5;
+  string imageUrl = 6;
+  bool isFeatured = 7;
+  string createdAt = 8;
+  string updatedAt = 9;
+}
+
+message SellerViewInventory {
+  int32 quantity = 1;
+}
+
+message SellerProductSellerViewDetail {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  string shortDescription = 4;
+  SellerViewPrice price = 5;
+  string categoryName = 6;
+  repeated ProductImage images = 7;
+  repeated ProductReview reviews = 8;
+  ReviewSummary reviewSummary = 9;
+  SellerViewInventory inventory = 10;
+  bool isFeatured = 11;
+  // Additional basics for product detail
+  string supplierId = 12;
+  string sku = 13;
+  string createdAt = 14;
+  string updatedAt = 15;
+  // Additional product details
+  ProductSpecifications specifications = 16;
+  ProductDimensions dimensions = 17;
+  ProductType type = 18;
+  repeated string tags = 19;
+  double weight = 20;
+}
+
+message SellerProductSellerViewDetailResponse {
+  bool success = 1;
+  string message = 2;
+  SellerProductSellerViewDetail data = 3;
+}
+
+message SellerProductSellerViewListResponse {
+  bool success = 1;
+  string message = 2;
+  repeated SellerProductSellerViewItem products = 3;
+  int32 total = 4;
+  int32 page = 5;
+  int32 limit = 6;
+  int32 totalPages = 7;
+}
+
+message ProductResponse {
+  bool success = 1;
+  string message = 2;
+  Product data = 3;
+}
+
+message ProductListResponse {
+  bool success = 1;
+  string message = 2;
+  repeated Product products = 3;
+  int32 total = 4;
+  int32 page = 5;
+  int32 limit = 6;
+  int32 totalPages = 7;
+  SupplierProductStats stats = 8; // optional: present when supplierId is provided
+}
+
+message EmptyResponse {
+  bool success = 1;
+  string message = 2;
+}
+message ProductExistsRequest {
+  string id = 1;
+}
+
+message ProductExistsResponse {
+  bool exists = 1;
+}
+// Service definition
+service SupplierProductService {
+  rpc CreateSupplierProduct(CreateSupplierProductRequest) returns (ProductResponse);
+  rpc UpdateSupplierProduct(UpdateSupplierProductRequest) returns (ProductResponse);
+  rpc GetSupplierProduct(GetSupplierProductRequest) returns (ProductResponse);
+  rpc GetSupplierProducts(GetSupplierProductsRequest) returns (ProductListResponse);
+  rpc ApproveSupplierProduct(ApproveSupplierProductRequest) returns (ProductResponse);
+  rpc RejectSupplierProduct(RejectSupplierProductRequest) returns (ProductResponse);
+  rpc DeleteSupplierProduct(GetSupplierProductRequest) returns (EmptyResponse);
+  rpc HideSupplierProduct(HideSupplierProductRequest) returns (ProductResponse);
+  rpc UnhideSupplierProduct(UnhideSupplierProductRequest) returns (ProductResponse);
+  // Admin suspend management
+  rpc SuspendSupplierProduct(SuspendSupplierProductRequest) returns (ProductResponse);
+  rpc UnsuspendSupplierProduct(UnsuspendSupplierProductRequest) returns (ProductResponse);
+  // Seller view queries
+  rpc GetSupplierProductSellerView(GetSupplierProductRequest) returns (SellerProductSellerViewDetailResponse);
+  rpc ListSupplierProductSellerView(GetSupplierProductsRequest) returns (SellerProductSellerViewListResponse);
+  // Supplier management
+  rpc GetSupplierProductStats(GetSupplierProductStatsRequest) returns (SupplierProductStatsResponse);
+  // Search support
+  rpc GetSupplierProductsByIds(GetSupplierProductsByIdsRequest) returns (ProductListResponse);
+}
+
+
+
