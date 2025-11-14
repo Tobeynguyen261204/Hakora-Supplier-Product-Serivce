@@ -1,0 +1,216 @@
+{
+  "info": {
+    "name": "Supplier Product Service - gRPC",
+    "description": "Collection for testing Supplier Product Service gRPC APIs",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "CreateSupplierProduct",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"supplierId\": \"supplier-123\",\n  \"name\": \"Áo thun nam cao cấp\",\n  \"description\": \"Áo thun nam chất liệu cotton 100%, thoáng mát, dễ giặt\",\n  \"shortDescription\": \"Áo thun nam cotton 100%\",\n  \"sku\": \"SKU-001\",\n  \"categoryName\": \"Thời trang nam\",\n  \"price\": {\n    \"listingPrice\": 150000,\n    \"retailPrice\": 200000,\n    \"currency\": \"VND\"\n  },\n  \"inventory\": {\n    \"quantity\": 100\n  },\n  \"type\": 1,\n  \"tags\": [\"áo thun\", \"nam\", \"cotton\"],\n  \"isActive\": true,\n  \"isFeatured\": false\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "grpc://localhost:50052/SupplierProductService/CreateSupplierProduct",
+          "protocol": "grpc",
+          "host": ["localhost"],
+          "port": "50052",
+          "path": ["SupplierProductService", "CreateSupplierProduct"]
+        },
+        "description": "Tạo sản phẩm mới cho supplier"
+      }
+    },
+    {
+      "name": "GetSupplierProduct",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"id\": \"product-id-here\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "grpc://localhost:50052/SupplierProductService/GetSupplierProduct",
+          "protocol": "grpc",
+          "host": ["localhost"],
+          "port": "50052",
+          "path": ["SupplierProductService", "GetSupplierProduct"]
+        },
+        "description": "Lấy chi tiết một sản phẩm"
+      }
+    },
+    {
+      "name": "GetSupplierProducts",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"page\": 1,\n  \"limit\": 10,\n  \"supplierId\": \"supplier-123\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "grpc://localhost:50052/SupplierProductService/GetSupplierProducts",
+          "protocol": "grpc",
+          "host": ["localhost"],
+          "port": "50052",
+          "path": ["SupplierProductService", "GetSupplierProducts"]
+        },
+        "description": "Lấy danh sách sản phẩm với phân trang"
+      }
+    },
+    {
+      "name": "UpdateSupplierProduct",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"id\": \"product-id-here\",\n  \"name\": \"Tên sản phẩm đã cập nhật\",\n  \"description\": \"Mô tả mới\",\n  \"price\": {\n    \"listingPrice\": 180000,\n    \"retailPrice\": 220000,\n    \"currency\": \"VND\"\n  }\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "grpc://localhost:50052/SupplierProductService/UpdateSupplierProduct",
+          "protocol": "grpc",
+          "host": ["localhost"],
+          "port": "50052",
+          "path": ["SupplierProductService", "UpdateSupplierProduct"]
+        },
+        "description": "Cập nhật thông tin sản phẩm"
+      }
+    },
+    {
+      "name": "ApproveSupplierProduct",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"id\": \"product-id-here\",\n  \"approvedBy\": \"admin-123\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "grpc://localhost:50052/SupplierProductService/ApproveSupplierProduct",
+          "protocol": "grpc",
+          "host": ["localhost"],
+          "port": "50052",
+          "path": ["SupplierProductService", "ApproveSupplierProduct"]
+        },
+        "description": "Phê duyệt sản phẩm"
+      }
+    },
+    {
+      "name": "RejectSupplierProduct",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"id\": \"product-id-here\",\n  \"reason\": \"Sản phẩm không đạt yêu cầu chất lượng\",\n  \"rejectedBy\": \"admin-123\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "grpc://localhost:50052/SupplierProductService/RejectSupplierProduct",
+          "protocol": "grpc",
+          "host": ["localhost"],
+          "port": "50052",
+          "path": ["SupplierProductService", "RejectSupplierProduct"]
+        },
+        "description": "Từ chối sản phẩm"
+      }
+    },
+    {
+      "name": "DeleteSupplierProduct",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"id\": \"product-id-here\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "grpc://localhost:50052/SupplierProductService/DeleteSupplierProduct",
+          "protocol": "grpc",
+          "host": ["localhost"],
+          "port": "50052",
+          "path": ["SupplierProductService", "DeleteSupplierProduct"]
+        },
+        "description": "Xóa sản phẩm"
+      }
+    },
+    {
+      "name": "GetSupplierProductStats",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"supplierId\": \"supplier-123\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "grpc://localhost:50052/SupplierProductService/GetSupplierProductStats",
+          "protocol": "grpc",
+          "host": ["localhost"],
+          "port": "50052",
+          "path": ["SupplierProductService", "GetSupplierProductStats"]
+        },
+        "description": "Lấy thống kê sản phẩm của supplier"
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "grpc_host",
+      "value": "localhost",
+      "type": "string"
+    },
+    {
+      "key": "grpc_port",
+      "value": "50052",
+      "type": "string"
+    }
+  ]
+}
+
+
+

@@ -1,10 +1,10 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule } from '@nestjs/config';
-import { SupplierProductModule } from './presentation/grpc/supplier-product.module';
-import { SupplierProductOrm } from './infrastructure/persistence/entities/supplier-product.entity';
-import { ProductImageOrm } from './infrastructure/persistence/entities/product-image.entity';
-import { ProductReviewOrm } from './infrastructure/persistence/entities/product-review.entity';
+import { SupplierProductModule } from './supplier-product/supplier-product.module';
+import { SupplierProductOrm } from './supplier-product/entities/supplier-product.entity';
+import { ProductImageOrm } from './supplier-product/entities/product-image.entity';
+import { ProductReviewOrm } from './supplier-product/entities/product-review.entity';
 
 @Module({
   imports: [
