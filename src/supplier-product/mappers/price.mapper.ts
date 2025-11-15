@@ -14,3 +14,4 @@ export class PriceMapper {
   // For backward compatibility
   static mapListingPrice = PriceMapper.mapPrice;
 }
+

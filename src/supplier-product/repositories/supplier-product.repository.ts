@@ -1,39 +1,87 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, SelectQueryBuilder } from 'typeorm';
-import { ISupplierProductRepository } from '../../../domain/repositories/supplier-product.repository.interface';
-import { SupplierProduct } from '../../../domain/aggregates/supplier-product.aggregate';
-import { ProductImage } from '../../../domain/entities/product-image.entity';
-import { ProductReview } from '../../../domain/entities/product-review.entity';
-import { ProductPrice } from '../../../domain/value-objects/product-price.vo';
-import { ProductInventory } from '../../../domain/value-objects/product-inventory.vo';
-import { ProductSpecifications } from '../../../domain/value-objects/product-specifications.vo';
-import { ProductStatus } from '../../../domain/enums/product-status.enum';
-import { ApprovalStatus } from '../../../domain/enums/approval-status.enum';
-import { ProductType } from '../../../domain/enums/product-type.enum';
+import { DataSource, Repository, SelectQueryBuilder, SaveOptions } from 'typeorm';
+import { ProductPrice } from '../value-objects/product-price.vo';
+import { ProductInventory } from '../value-objects/product-inventory.vo';
+import { ProductSpecifications } from '../value-objects/product-specifications.vo';
+import { ProductStatus } from '../enums/product-status.enum';
+import { ApprovalStatus } from '../enums/approval-status.enum';
+import { ProductType } from '../enums/product-type.enum';
 import { SupplierProductOrm } from '../entities/supplier-product.entity';
 import { ProductImageOrm } from '../entities/product-image.entity';
 import { ProductReviewOrm } from '../entities/product-review.entity';
+import { ISupplierProductRepository } from '../interfaces/supplier-product-repository.interface';
 
+/**
+ * Custom Repository cho SupplierProduct
+ * 
+ * Extend từ Repository<SupplierProductOrm> của TypeORM
+ * Custom Repository này xử lý:
+ * - Domain mapping (ORM <-> Domain Model)
+ * - Business logic queries phức tạp
+ * - Query builder patterns tái sử dụng
+ * 
+ * @note Kế thừa tất cả các method CRUD cơ bản từ Repository<SupplierProductOrm>:
+ * - find, findOne, save, delete, update, count, etc.
+ * Custom Repository này mở rộng với domain logic và business queries
+ */
 @Injectable()
-export class SupplierProductRepository implements ISupplierProductRepository {
+export class SupplierProductRepository extends Repository<SupplierProductOrm> implements ISupplierProductRepository {
   constructor(
-    @InjectRepository(SupplierProductOrm)
-    private readonly productRepo: Repository<SupplierProductOrm>,
+    private readonly dataSource: DataSource,
     @InjectRepository(ProductImageOrm)
     private readonly imageRepo: Repository<ProductImageOrm>,
     @InjectRepository(ProductReviewOrm)
     private readonly reviewRepo: Repository<ProductReviewOrm>
-  ) {}
-
-  async save(product: SupplierProduct): Promise<SupplierProduct> {
-    const productOrm = this.toOrm(product);
-    const savedProduct = await this.productRepo.save(productOrm);
-    return this.toDomain(savedProduct);
+  ) {
+    // Gọi super constructor với DataSource và EntityManager
+    super(
+      SupplierProductOrm,
+      dataSource.createEntityManager()
+    );
   }
 
-  async findById(id: string): Promise<SupplierProduct | null> {
-    const productOrm = await this.productRepo.findOne({
+  // ============================================================================
+  // Helper Methods - Tái sử dụng query builder patterns
+  // ============================================================================
+
+  /**
+   * Tạo query builder với relations mặc định (images, reviews)
+   * Helper method để tránh lặp lại code
+   * Sử dụng this.createQueryBuilder() vì đã extend Repository
+   */
+  private createQueryBuilderWithRelations(alias: string = 'product'): SelectQueryBuilder<SupplierProductOrm> {
+    return this.createQueryBuilder(alias)
+      .leftJoinAndSelect(`${alias}.images`, 'images')
+      .leftJoinAndSelect(`${alias}.reviews`, 'reviews');
+  }
+
+  // ============================================================================
+  // Basic CRUD Operations - Sử dụng Repository gốc từ TypeORM
+  // ============================================================================
+
+  // Overload for single entity
+  async save(product: SupplierProductOrm, options?: SaveOptions): Promise<SupplierProductOrm>;
+  // Overload for array of entities
+  async save(products: SupplierProductOrm[], options?: SaveOptions): Promise<SupplierProductOrm[]>;
+  // Implementation
+  async save(
+    productOrProducts: SupplierProductOrm | SupplierProductOrm[],
+    options?: SaveOptions
+  ): Promise<SupplierProductOrm | SupplierProductOrm[]> {
+    if (Array.isArray(productOrProducts)) {
+      const productsOrm = productOrProducts.map(p => this.toOrm(p));
+      const savedProducts = await super.save(productsOrm, options);
+      return savedProducts.map(p => this.toDomain(p));
+    } else {
+      const productOrm = this.toOrm(productOrProducts);
+      const savedProduct = await super.save(productOrm, options);
+      return this.toDomain(savedProduct);
+    }
+  }
+
+  async findById(id: string): Promise<SupplierProductOrm | null> {
+    const productOrm = await this.findOne({
       where: { id },
       relations: ['images', 'reviews']
     });
@@ -41,8 +89,8 @@ export class SupplierProductRepository implements ISupplierProductRepository {
     return this.toDomain(productOrm);
   }
 
-  async findBySku(sku: string): Promise<SupplierProduct | null> {
-    const productOrm = await this.productRepo.findOne({
+  async findBySku(sku: string): Promise<SupplierProductOrm | null> {
+    const productOrm = await this.findOne({
       where: { sku },
       relations: ['images', 'reviews']
     });
@@ -50,114 +98,114 @@ export class SupplierProductRepository implements ISupplierProductRepository {
     return this.toDomain(productOrm);
   }
 
-  async update(product: SupplierProduct): Promise<SupplierProduct> {
+  async updateProduct(product: SupplierProductOrm): Promise<SupplierProductOrm> {
     const productOrm = this.toOrm(product);
-    const updatedProduct = await this.productRepo.save(productOrm);
+    const updatedProduct = await super.save(productOrm);
     return this.toDomain(updatedProduct);
   }
 
-  async remove(id: string): Promise<void> {
-    await this.productRepo.delete({ id });
+  async deleteById(id: string): Promise<void> {
+    await super.delete({ id });
   }
 
-  async findBySupplierId(supplierId: string): Promise<SupplierProduct[]> {
-    const products = await this.productRepo.find({
+  async findBySupplierId(supplierId: string): Promise<SupplierProductOrm[]> {
+    const products = await this.find({
       where: { supplierId },
       relations: ['images', 'reviews']
     });
     return products.map(product => this.toDomain(product));
   }
 
-  async findBySupplierIdAndStatus(supplierId: string, status: ProductStatus): Promise<SupplierProduct[]> {
-    const products = await this.productRepo.find({
+  async findBySupplierIdAndStatus(supplierId: string, status: ProductStatus): Promise<SupplierProductOrm[]> {
+    const products = await this.find({
       where: { supplierId, status },
       relations: ['images', 'reviews']
     });
     return products.map(product => this.toDomain(product));
   }
 
-  async findBySupplierIdAndApprovalStatus(supplierId: string, approvalStatus: ApprovalStatus): Promise<SupplierProduct[]> {
-    const products = await this.productRepo.find({
+  async findBySupplierIdAndApprovalStatus(supplierId: string, approvalStatus: ApprovalStatus): Promise<SupplierProductOrm[]> {
+    const products = await this.find({
       where: { supplierId, approvalStatus },
       relations: ['images', 'reviews']
     });
     return products.map(product => this.toDomain(product));
   }
 
-  async findByCategoryId(categoryId: string): Promise<SupplierProduct[]> {
-    const products = await this.productRepo.find({
+  async findByCategoryId(categoryId: string): Promise<SupplierProductOrm[]> {
+    const products = await this.find({
       where: { categoryName: categoryId },
       relations: ['images', 'reviews']
     });
     return products.map(product => this.toDomain(product));
   }
 
-  async findByCategoryIdAndStatus(categoryId: string, status: ProductStatus): Promise<SupplierProduct[]> {
-    const products = await this.productRepo.find({
+  async findByCategoryIdAndStatus(categoryId: string, status: ProductStatus): Promise<SupplierProductOrm[]> {
+    const products = await this.find({
       where: { categoryName: categoryId, status },
       relations: ['images', 'reviews']
     });
     return products.map(product => this.toDomain(product));
   }
 
-  async findByStatus(status: ProductStatus): Promise<SupplierProduct[]> {
-    const products = await this.productRepo.find({
+  async findByStatus(status: ProductStatus): Promise<SupplierProductOrm[]> {
+    const products = await this.find({
       where: { status },
       relations: ['images', 'reviews']
     });
     return products.map(product => this.toDomain(product));
   }
 
-  async findByApprovalStatus(approvalStatus: ApprovalStatus): Promise<SupplierProduct[]> {
-    const products = await this.productRepo.find({
+  async findByApprovalStatus(approvalStatus: ApprovalStatus): Promise<SupplierProductOrm[]> {
+    const products = await this.find({
       where: { approvalStatus },
       relations: ['images', 'reviews']
     });
     return products.map(product => this.toDomain(product));
   }
 
-  async findPendingApproval(): Promise<SupplierProduct[]> {
+  async findPendingApproval(): Promise<SupplierProductOrm[]> {
     return this.findByApprovalStatus(ApprovalStatus.PENDING);
   }
 
-  async findApproved(): Promise<SupplierProduct[]> {
+  async findApproved(): Promise<SupplierProductOrm[]> {
     return this.findByApprovalStatus(ApprovalStatus.APPROVED);
   }
 
-  async findRejected(): Promise<SupplierProduct[]> {
+  async findRejected(): Promise<SupplierProductOrm[]> {
     return this.findByApprovalStatus(ApprovalStatus.REJECTED);
   }
 
-  async findActive(): Promise<SupplierProduct[]> {
-    const products = await this.productRepo.find({
+  async findActive(): Promise<SupplierProductOrm[]> {
+    const products = await this.find({
       where: { status: ProductStatus.PUBLISHED, isActive: true },
       relations: ['images', 'reviews']
     });
     return products.map(product => this.toDomain(product));
   }
 
-  async findActiveBySupplierId(supplierId: string): Promise<SupplierProduct[]> {
-    const products = await this.productRepo.find({
+  async findActiveBySupplierId(supplierId: string): Promise<SupplierProductOrm[]> {
+    const products = await this.find({
       where: { supplierId, status: ProductStatus.PUBLISHED, isActive: true },
       relations: ['images', 'reviews']
     });
     return products.map(product => this.toDomain(product));
   }
 
-  async findActiveByCategoryId(categoryId: string): Promise<SupplierProduct[]> {
-    const products = await this.productRepo.find({
+  async findActiveByCategoryId(categoryId: string): Promise<SupplierProductOrm[]> {
+    const products = await this.find({
       where: { categoryName: categoryId, status: ProductStatus.PUBLISHED, isActive: true },
       relations: ['images', 'reviews']
     });
     return products.map(product => this.toDomain(product));
   }
 
-  async search(query: string): Promise<SupplierProduct[]> {
-    const products = await this.productRepo
-      .createQueryBuilder('product')
-      // category removed
-      .leftJoinAndSelect('product.images', 'images')
-      .leftJoinAndSelect('product.reviews', 'reviews')
+  // ============================================================================
+  // Complex Query Operations - Sử dụng Query Builder cho logic phức tạp
+  // ============================================================================
+
+  async search(query: string): Promise<SupplierProductOrm[]> {
+    const products = await this.createQueryBuilderWithRelations()
       .where('product.name ILIKE :query OR product.description ILIKE :query OR product.sku ILIKE :query', {
         query: `%${query}%`
       })
@@ -165,12 +213,8 @@ export class SupplierProductRepository implements ISupplierProductRepository {
     return products.map(product => this.toDomain(product));
   }
 
-  async searchBySupplier(supplierId: string, query: string): Promise<SupplierProduct[]> {
-    const products = await this.productRepo
-      .createQueryBuilder('product')
-      // category removed
-      .leftJoinAndSelect('product.images', 'images')
-      .leftJoinAndSelect('product.reviews', 'reviews')
+  async searchBySupplier(supplierId: string, query: string): Promise<SupplierProductOrm[]> {
+    const products = await this.createQueryBuilderWithRelations()
       .where('product.supplierId = :supplierId', { supplierId })
       .andWhere('(product.name ILIKE :query OR product.description ILIKE :query OR product.sku ILIKE :query)', {
         query: `%${query}%`
@@ -179,24 +223,16 @@ export class SupplierProductRepository implements ISupplierProductRepository {
     return products.map(product => this.toDomain(product));
   }
 
-  async findByTags(tags: string[]): Promise<SupplierProduct[]> {
-    const products = await this.productRepo
-      .createQueryBuilder('product')
-      // category removed
-      .leftJoinAndSelect('product.images', 'images')
-      .leftJoinAndSelect('product.reviews', 'reviews')
+  async findByTags(tags: string[]): Promise<SupplierProductOrm[]> {
+    const products = await this.createQueryBuilderWithRelations()
       .where('product.tags && :tags', { tags })
       .getMany();
     return products.map(product => this.toDomain(product));
   }
 
-  async findByPriceRange(minPrice: number, maxPrice: number): Promise<SupplierProduct[]> {
-    const products = await this.productRepo
-      .createQueryBuilder('product')
-      // category removed
-      .leftJoinAndSelect('product.images', 'images')
-      .leftJoinAndSelect('product.reviews', 'reviews')
-      .where('(product.price->>\'amount\')::numeric BETWEEN :minPrice AND :maxPrice', {
+  async findByPriceRange(minPrice: number, maxPrice: number): Promise<SupplierProductOrm[]> {
+    const products = await this.createQueryBuilderWithRelations()
+      .where('(product.price->>\'listingPrice\')::numeric BETWEEN :minPrice AND :maxPrice', {
         minPrice,
         maxPrice
       })
@@ -204,48 +240,40 @@ export class SupplierProductRepository implements ISupplierProductRepository {
     return products.map(product => this.toDomain(product));
   }
 
-  async findByType(type: ProductType): Promise<SupplierProduct[]> {
-    const products = await this.productRepo.find({
+  async findByType(type: ProductType): Promise<SupplierProductOrm[]> {
+    const products = await this.find({
       where: { type },
       relations: ['images', 'reviews']
     });
     return products.map(product => this.toDomain(product));
   }
 
-  async findFeatured(): Promise<SupplierProduct[]> {
-    const products = await this.productRepo.find({
+  async findFeatured(): Promise<SupplierProductOrm[]> {
+    const products = await this.find({
       where: { isFeatured: true },
       relations: ['images', 'reviews']
     });
     return products.map(product => this.toDomain(product));
   }
 
-  async findFeaturedBySupplierId(supplierId: string): Promise<SupplierProduct[]> {
-    const products = await this.productRepo.find({
+  async findFeaturedBySupplierId(supplierId: string): Promise<SupplierProductOrm[]> {
+    const products = await this.find({
       where: { supplierId, isFeatured: true },
       relations: ['images', 'reviews']
     });
     return products.map(product => this.toDomain(product));
   }
 
-  async findLowStock(): Promise<SupplierProduct[]> {
-    const products = await this.productRepo
-      .createQueryBuilder('product')
-      // category removed
-      .leftJoinAndSelect('product.images', 'images')
-      .leftJoinAndSelect('product.reviews', 'reviews')
+  async findLowStock(): Promise<SupplierProductOrm[]> {
+    const products = await this.createQueryBuilderWithRelations()
       .where('(product.inventory->>\'quantity\')::numeric <= (product.inventory->>\'minStockLevel\')::numeric')
       .andWhere('(product.inventory->>\'isTracked\')::boolean = true')
       .getMany();
     return products.map(product => this.toDomain(product));
   }
 
-  async findOutOfStock(): Promise<SupplierProduct[]> {
-    const products = await this.productRepo
-      .createQueryBuilder('product')
-      // category removed
-      .leftJoinAndSelect('product.images', 'images')
-      .leftJoinAndSelect('product.reviews', 'reviews')
+  async findOutOfStock(): Promise<SupplierProductOrm[]> {
+    const products = await this.createQueryBuilderWithRelations()
       .where('(product.inventory->>\'quantity\')::numeric = 0')
       .getMany();
     return products.map(product => this.toDomain(product));
@@ -269,17 +297,14 @@ export class SupplierProductRepository implements ISupplierProductRepository {
       isSuspend?: boolean;
     }
   ): Promise<{
-    products: SupplierProduct[];
+    products: SupplierProductOrm[];
     total: number;
     page: number;
     limit: number;
     totalPages: number;
   }> {
-    const queryBuilder = this.productRepo
-      .createQueryBuilder('product')
-      // category removed
-      .leftJoinAndSelect('product.images', 'images')
-      .leftJoinAndSelect('product.reviews', 'reviews');
+    // Sử dụng helper method để tạo query builder với relations
+    const queryBuilder = this.createQueryBuilderWithRelations();
 
     // Apply filters
     if (filters) {
@@ -345,81 +370,71 @@ export class SupplierProductRepository implements ISupplierProductRepository {
   }
 
   async countByStatus(status: ProductStatus): Promise<number> {
-    return this.productRepo.count({ where: { status } });
+    return this.count({ where: { status } });
   }
 
   async countByApprovalStatus(approvalStatus: ApprovalStatus): Promise<number> {
-    return this.productRepo.count({ where: { approvalStatus } });
+    return this.count({ where: { approvalStatus } });
   }
 
   async countBySupplierId(supplierId: string): Promise<number> {
-    return this.productRepo.count({ where: { supplierId } });
+    return this.count({ where: { supplierId } });
   }
 
   async countByCategoryId(categoryId: string): Promise<number> {
-    return this.productRepo.count({ where: { categoryName: categoryId } });
+    return this.count({ where: { categoryName: categoryId } });
   }
 
   async countActive(): Promise<number> {
-    return this.productRepo.count({ where: { status: ProductStatus.PUBLISHED, isActive: true } });
+    return this.count({ where: { status: ProductStatus.PUBLISHED, isActive: true } });
   }
 
   async countPendingApproval(): Promise<number> {
-    return this.productRepo.count({ where: { approvalStatus: ApprovalStatus.PENDING } });
+    return this.count({ where: { approvalStatus: ApprovalStatus.PENDING } });
   }
 
   async updateStatus(ids: string[], status: ProductStatus): Promise<void> {
-    await this.productRepo.update(ids, { status });
+    await super.update(ids, { status });
   }
 
   async updateApprovalStatus(ids: string[], approvalStatus: ApprovalStatus): Promise<void> {
-    await this.productRepo.update(ids, { approvalStatus });
+    await super.update(ids, { approvalStatus });
   }
 
   async bulkDelete(ids: string[]): Promise<void> {
-    await this.productRepo.delete(ids);
+    await super.delete(ids);
   }
 
   async bulkActivate(ids: string[]): Promise<void> {
-    await this.productRepo.update(ids, { isActive: true, status: ProductStatus.PUBLISHED });
+    await super.update(ids, { isActive: true, status: ProductStatus.PUBLISHED });
   }
 
   async bulkDeactivate(ids: string[]): Promise<void> {
-    await this.productRepo.update(ids, { isActive: false, status: ProductStatus.DRAFT });
+    await super.update(ids, { isActive: false, status: ProductStatus.DRAFT });
   }
 
-  async findRecentlyAdded(days: number): Promise<SupplierProduct[]> {
+  async findRecentlyAdded(days: number): Promise<SupplierProductOrm[]> {
     const date = new Date();
     date.setDate(date.getDate() - days);
     
-    const products = await this.productRepo
-      .createQueryBuilder('product')
-      .leftJoinAndSelect('product.images', 'images')
-      .leftJoinAndSelect('product.reviews', 'reviews')
+    const products = await this.createQueryBuilderWithRelations()
       .where('product.createdAt >= :date', { date })
       .getMany();
     return products.map(product => this.toDomain(product));
   }
 
-  async findRecentlyUpdated(days: number): Promise<SupplierProduct[]> {
+  async findRecentlyUpdated(days: number): Promise<SupplierProductOrm[]> {
     const date = new Date();
     date.setDate(date.getDate() - days);
     
-    const products = await this.productRepo
-      .createQueryBuilder('product')
-      .leftJoinAndSelect('product.images', 'images')
-      .leftJoinAndSelect('product.reviews', 'reviews')
+    const products = await this.createQueryBuilderWithRelations()
       .where('product.updatedAt >= :date', { date })
       .getMany();
     return products.map(product => this.toDomain(product));
   }
 
-  async findTopRated(limit: number): Promise<SupplierProduct[]> {
-    const products = await this.productRepo
-      .createQueryBuilder('product')
-      // category removed
-      .leftJoinAndSelect('product.images', 'images')
-      .leftJoinAndSelect('product.reviews', 'reviews')
+  async findTopRated(limit: number): Promise<SupplierProductOrm[]> {
+    const products = await this.createQueryBuilderWithRelations()
       .addSelect('AVG(reviews.rating)', 'avgRating')
       .groupBy('product.id')
       .orderBy('avgRating', 'DESC')
@@ -428,12 +443,8 @@ export class SupplierProductRepository implements ISupplierProductRepository {
     return products.map(product => this.toDomain(product));
   }
 
-  async findMostReviewed(limit: number): Promise<SupplierProduct[]> {
-    const products = await this.productRepo
-      .createQueryBuilder('product')
-      // category removed
-      .leftJoinAndSelect('product.images', 'images')
-      .leftJoinAndSelect('product.reviews', 'reviews')
+  async findMostReviewed(limit: number): Promise<SupplierProductOrm[]> {
+    const products = await this.createQueryBuilderWithRelations()
       .addSelect('COUNT(reviews.id)', 'reviewCount')
       .groupBy('product.id')
       .orderBy('reviewCount', 'DESC')
@@ -442,13 +453,13 @@ export class SupplierProductRepository implements ISupplierProductRepository {
     return products.map(product => this.toDomain(product));
   }
 
-  async findBestSelling(limit: number): Promise<SupplierProduct[]> {
+  async findBestSelling(limit: number): Promise<SupplierProductOrm[]> {
     // This would need to be implemented based on order data
     // For now, return featured products
     return this.findFeatured();
   }
 
-  async findRelatedProducts(productId: string, limit: number): Promise<SupplierProduct[]> {
+  async findRelatedProducts(productId: string, limit: number): Promise<SupplierProductOrm[]> {
     // Get the product to find its category
     const product = await this.findById(productId);
     if (!product) return [];
@@ -460,7 +471,11 @@ export class SupplierProductRepository implements ISupplierProductRepository {
       .slice(0, limit);
   }
 
-  private toDomain(ormProduct: SupplierProductOrm): SupplierProduct {
+  /**
+   * Chuyển đổi từ ORM Entity sang Domain Model
+   * Custom Repository xử lý mapping logic phức tạp
+   */
+  private toDomain(ormProduct: SupplierProductOrm): SupplierProductOrm {
     const categoryName = ormProduct.categoryName;
 
     const price = new ProductPrice(
@@ -479,7 +494,7 @@ export class SupplierProductRepository implements ISupplierProductRepository {
     );
 
     const images = (ormProduct.images || []).map(img => 
-      new ProductImage(
+      ProductImageOrm.create(
         img.id,
         img.productId,
         img.url,
@@ -494,7 +509,7 @@ export class SupplierProductRepository implements ISupplierProductRepository {
     );
 
     const reviews = (ormProduct.reviews || []).map(review => 
-      new ProductReview(
+      ProductReviewOrm.create(
         review.id,
         review.productId,
         review.customerId,
@@ -503,44 +518,19 @@ export class SupplierProductRepository implements ISupplierProductRepository {
         review.comment,
         review.isVerified,
         review.isPublished,
-        review.helpfulCount,
-        review.createdAt,
-        review.updatedAt
       )
     );
 
-    return new SupplierProduct(
-      ormProduct.id,
-      ormProduct.supplierId,
-      ormProduct.name,
-      ormProduct.description,
-      ormProduct.shortDescription,
-      ormProduct.sku,
-      categoryName,
-      price,
-      inventory,
-      specifications,
-      ormProduct.type as ProductType,
-      ormProduct.status as ProductStatus,
-      ormProduct.approvalStatus as ApprovalStatus,
-      images,
-      reviews,
-      ormProduct.tags,
-      ormProduct.isActive,
-      ormProduct.isFeatured,
-      ormProduct.isSuspend,
-      ormProduct.weight,
-      ormProduct.dimensions,
-      ormProduct.seoData,
-      ormProduct.createdAt,
-      ormProduct.updatedAt,
-      ormProduct.approvedAt,
-      ormProduct.approvedBy,
-      ormProduct.rejectionReason
-    );
+    // ✅ Repository should return raw ORM entities, not create new ones
+    // The entity already has all the data loaded from database
+    return ormProduct;
   }
 
-  private toOrm(product: SupplierProduct): SupplierProductOrm {
+  /**
+   * Chuyển đổi từ Domain Model sang ORM Entity
+   * Custom Repository xử lý mapping logic phức tạp với type safety
+   */
+  private toOrm(product: SupplierProductOrm): SupplierProductOrm {
     // Type-safe helper functions
     type DimensionsShape = {
       length?: number;
@@ -635,81 +625,80 @@ export class SupplierProductRepository implements ISupplierProductRepository {
       return isNaN(d.getTime()) ? undefined : d;
     };
 
-    return {
-      id: product.id,
-      supplierId: product.supplierId,
-      name: product.name,
-      description: product.description,
-      shortDescription: product.shortDescription,
-      sku: product.sku,
-      categoryName: product.categoryName,
-      price: safePrice,
-      inventory: safeInventory,
-      specifications: {
-        specifications: Object.fromEntries(product.specifications.specifications),
-        materials: product.specifications.materials,
-        colors: product.specifications.colors,
-        sizes: product.specifications.sizes
-      },
-      type: product.type,
-      status: product.status,
-      approvalStatus: product.approvalStatus,
-      tags: product.tags,
-      isActive: product.isActive,
-      isFeatured: product.isFeatured,
-      isSuspend: product.isSuspend,
-      weight: safeWeight,
-      dimensions: safeDimensions,
-      seoData: isSeoShape(product.seoData) ? product.seoData : undefined,
-      images: product.images.map(img => {
-        const imageOrm = new ProductImageOrm();
-        imageOrm.id = img.id;
-        imageOrm.productId = product.id;
-        imageOrm.url = img.url;
-        imageOrm.altText = img.altText;
-        imageOrm.sortOrder = img.sortOrder;
-        imageOrm.isPrimary = img.isPrimary;
-        imageOrm.width = img.width;
-        imageOrm.height = img.height;
-        imageOrm.fileSize = img.fileSize;
-        imageOrm.mimeType = img.mimeType;
-        return imageOrm;
-      }),
-      reviews: product.reviews.map(review => {
-        const reviewOrm = new ProductReviewOrm();
-        reviewOrm.id = review.id;
-        reviewOrm.productId = product.id;
-        reviewOrm.customerId = review.customerId;
-        reviewOrm.rating = review.rating;
-        reviewOrm.title = review.title;
-        reviewOrm.comment = review.comment;
-        reviewOrm.isVerified = review.isVerified;
-        reviewOrm.isPublished = review.isPublished;
-        reviewOrm.helpfulCount = review.helpfulCount;
-        reviewOrm.createdAt = review.createdAt;
-        reviewOrm.updatedAt = review.updatedAt;
-        return reviewOrm;
-      }),
-      createdAt: toSafeDate(product.createdAt) || new Date(),
-      updatedAt: toSafeDate(product.updatedAt) || new Date(),
-      approvedAt: toSafeDate(product.approvedAt),
-      approvedBy: product.approvedBy,
-      rejectionReason: product.rejectionReason
+    // ✅ Repository should use direct property assignment, not factory methods
+    const entity = new SupplierProductOrm();
+    entity.id = product.id;
+    entity.supplierId = product.supplierId;
+    entity.name = product.name;
+    entity.description = product.description;
+    entity.shortDescription = product.shortDescription;
+    entity.sku = product.sku;
+    entity.categoryName = product.categoryName;
+    entity.price = safePrice;
+    entity.inventory = safeInventory;
+    entity.specifications = {
+      specifications: product.specifications.specifications,
+      materials: product.specifications.materials,
+      colors: product.specifications.colors,
+      sizes: product.specifications.sizes
     };
+    entity.type = product.type;
+    entity.status = product.status;
+    entity.approvalStatus = product.approvalStatus;
+    entity.images = product.images.map(img => {
+      const imageOrm = new ProductImageOrm();
+      imageOrm.id = img.id;
+      imageOrm.productId = product.id;
+      imageOrm.url = img.url;
+      imageOrm.altText = img.altText;
+      imageOrm.sortOrder = img.sortOrder;
+      imageOrm.isPrimary = img.isPrimary;
+      imageOrm.width = img.width;
+      imageOrm.height = img.height;
+      imageOrm.fileSize = img.fileSize;
+      imageOrm.mimeType = img.mimeType;
+      return imageOrm;
+    });
+    entity.reviews = product.reviews.map(review => {
+      const reviewOrm = new ProductReviewOrm();
+      reviewOrm.id = review.id;
+      reviewOrm.productId = product.id;
+      reviewOrm.customerId = review.customerId;
+      reviewOrm.rating = review.rating;
+      reviewOrm.title = review.title;
+      reviewOrm.comment = review.comment;
+      reviewOrm.isVerified = review.isVerified;
+      reviewOrm.isPublished = review.isPublished;
+      reviewOrm.helpfulCount = review.helpfulCount;
+      reviewOrm.createdAt = review.createdAt;
+      reviewOrm.updatedAt = review.updatedAt;
+      return reviewOrm;
+    });
+    entity.tags = product.tags;
+    entity.isActive = product.isActive;
+    entity.isFeatured = product.isFeatured;
+    entity.isSuspend = product.isSuspend;
+    entity.weight = safeWeight;
+    entity.dimensions = safeDimensions;
+    entity.seoData = isSeoShape(product.seoData) ? product.seoData : undefined;
+    
+    return entity;
   }
 
-  async findByIds(productIds: string[]): Promise<SupplierProduct[]> {
+  async findByIds(productIds: string[]): Promise<SupplierProductOrm[]> {
     if (!productIds || productIds.length === 0) {
       return [];
     }
 
-    const products = await this.productRepo
-      .createQueryBuilder('product')
-      .leftJoinAndSelect('product.images', 'images')
-      .leftJoinAndSelect('product.reviews', 'reviews')
+    const products = await this.createQueryBuilderWithRelations()
       .where('product.id IN (:...ids)', { ids: productIds })
       .getMany();
 
     return products.map(product => this.toDomain(product));
   }
+
+  // ============================================================================
+  // Domain Mapping Methods - Chuyển đổi giữa ORM và Domain Model
+  // ============================================================================
+  
 }

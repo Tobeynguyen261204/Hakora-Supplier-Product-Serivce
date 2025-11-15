@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { SupplierProductRepository } from '../repositories/supplier-product.repository';
-import { ApprovalStatus } from '../../domain/enums/approval-status.enum';
-import { SupplierProduct } from '../../domain/aggregates/supplier-product.aggregate';
+import { ApprovalStatus } from '../enums/approval-status.enum';
+import { SupplierProductOrm } from '../entities/supplier-product.entity';
 
 interface SupplierProductStats {
   approved: number;
@@ -23,7 +23,7 @@ export class GetSupplierProductStatsService {
   async execute(supplierId: string): Promise<{ success: boolean; message: string; data?: SupplierProductStats }> {
     const products = await this.supplierProductRepository.findBySupplierId(supplierId);
     const LOW_STOCK_THRESHOLD = 5;
-    const getQuantity = (p: SupplierProduct): number => {
+    const getQuantity = (p: SupplierProductOrm): number => {
       const q = p.inventory.quantity;
       return typeof q === 'number' && Number.isFinite(q) ? q : 0;
     };

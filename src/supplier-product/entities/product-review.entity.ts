@@ -46,4 +46,26 @@ export class ProductReviewOrm {
 
   @UpdateDateColumn()
   updatedAt!: Date;
+
+  static create(
+    id: string,
+    productId: string,
+    customerId: string,
+    rating: number,
+    title?: string,
+    comment?: string,
+    isVerified: boolean = false,
+    isPublished: boolean = true,
+  ): ProductReviewOrm {
+    const review = new ProductReviewOrm();
+    review.id = id;
+    review.productId = productId;
+    review.customerId = customerId;
+    review.rating = rating;
+    review.title = title;
+    review.comment = comment;
+    review.isVerified = isVerified;
+    review.isPublished = isPublished;
+    return review;
+  }
 }

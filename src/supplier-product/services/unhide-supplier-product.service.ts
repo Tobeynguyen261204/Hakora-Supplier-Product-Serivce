@@ -1,7 +1,8 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { SupplierProductRepository } from '../repositories/supplier-product.repository';
-import { ProductStatus } from '../../domain/enums/product-status.enum';
-import { SupplierProduct } from '../../domain/aggregates/supplier-product.aggregate';
+import { ProductStatus } from '../enums/product-status.enum';
+import { SupplierProductOrm } from '../entities/supplier-product.entity';
+import { SupplierProductBusinessService } from './supplier-product-business.service';
 
 export interface UnhideSupplierProductRequest {
   id: string;
@@ -11,7 +12,8 @@ export interface UnhideSupplierProductRequest {
 @Injectable()
 export class UnhideSupplierProductService {
   constructor(
-    private readonly supplierProductRepository: SupplierProductRepository
+    private readonly supplierProductRepository: SupplierProductRepository,
+    private readonly supplierProductBusinessService: SupplierProductBusinessService
   ) {}
 
   async execute(request: UnhideSupplierProductRequest): Promise<any> {
@@ -33,36 +35,11 @@ export class UnhideSupplierProductService {
       throw new BadRequestException('Product is not hidden');
     }
 
-    // Unhide product by setting isActive to true and isSuspend to false
-    const updatedProduct = new SupplierProduct(
-      product.id,
-      product.supplierId,
-      product.name,
-      product.description,
-      product.shortDescription,
-      product.sku,
-      product.categoryName,
-      product.price,
-      product.inventory,
-      product.specifications,
-      product.type,
-      ProductStatus.PUBLISHED,
-      product.approvalStatus,
-      product.images,
-      product.reviews,
-      product.tags,
-      true, // Set isActive to true
-      product.isFeatured,
-      false, // Set isSuspend to false
-      product.weight,
-      product.dimensions,
-      product.seoData,
-      product.createdAt,
-      new Date(),
-      product.approvedAt,
-      product.approvedBy,
-      product.rejectionReason
-    );
+    // Unhide the product by setting isActive to true
+    product.isActive = true;
+    product.isSuspend = false;
+    product.status = ProductStatus.PUBLISHED;
+    const updatedProduct = product;
 
     const adminNote = {
       action: 'UNHIDDEN',

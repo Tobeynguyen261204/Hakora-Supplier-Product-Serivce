@@ -12,7 +12,7 @@ export class DeleteSupplierProductService {
     if (!exists) {
       throw new NotFoundException('Product not found');
     }
-    await this.supplierProductRepository.remove(id);
+    await this.supplierProductRepository.deleteById(id);
     return { success: true, message: 'Deleted' };
   }
 }

@@ -1,6 +1,6 @@
-import { ProductStatus } from '../../domain/enums/product-status.enum';
-import { ProductType } from '../../domain/enums/product-type.enum';
-import { ApprovalStatus } from '../../domain/enums/approval-status.enum';
+import { ProductStatus } from '../enums/product-status.enum';
+import { ProductType } from '../enums/product-type.enum';
+import { ApprovalStatus } from '../enums/approval-status.enum';
 import { ProductPriceResponseDto } from './product-price.dto';
 
 export class ProductInventoryResponseDto {

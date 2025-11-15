@@ -34,11 +34,13 @@ export class GetSupplierProductSellerViewService {
     if (!visible) return { success: false, message: 'Product not available for sellers' };
 
     const categoryName = product.categoryName || null;
+    const listingPrice = product.price?.listingPrice || 0;
+    const retailPrice = product.price?.retailPrice || 0;
     const price: ProductPriceResponseDto = {
-      listingPrice: product.price?.listingPrice || 0,
-      retailPrice: product.price?.retailPrice || 0,
+      listingPrice,
+      retailPrice,
       currency: product.price?.currency || 'VND',
-      profitAmount: product.price?.profitAmount || 0
+      profitAmount: retailPrice - listingPrice
     };
     const quantity = product.inventory?.quantity;
     const images = (product.images || []).map(i => ({ id: i.id, url: i.url, altText: i.altText, isPrimary: i.isPrimary, width: i.width, height: i.height }));
@@ -65,7 +67,7 @@ export class GetSupplierProductSellerViewService {
         reviewSummary: { count, averageRating: avg },
         inventory: quantity !== undefined ? { quantity } : undefined,
         specifications: product.specifications ? {
-          specifications: Object.fromEntries(product.specifications.specifications || new Map()),
+          specifications: product.specifications.specifications || {},
           materials: product.specifications.materials,
           colors: product.specifications.colors,
           sizes: product.specifications.sizes

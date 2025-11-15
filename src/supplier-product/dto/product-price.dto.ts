@@ -35,3 +35,4 @@ export class ProductPriceResponseDto {
   currency: string;
   profitAmount: number;
 }
+

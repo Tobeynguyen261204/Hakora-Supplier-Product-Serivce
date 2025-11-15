@@ -12,22 +12,28 @@ import { ProductType } from '../enums/product-type.enum';
 import { ProductStatus } from '../enums/product-status.enum';
 import { ApprovalStatus } from '../enums/approval-status.enum';
 import { SupplierProductMapper } from '../mappers/supplier-product.mapper';
+import { ICreateSupplierProductService } from '../interfaces/supplier-product-service.interface';
+import { SupplierProductAlreadyExistsException } from '../exceptions/supplier-product.exceptions';
+import { SupplierProductFactoryService } from './supplier-product-factory.service';
+import { SupplierProductValidationService } from './supplier-product-validation.service';
 
 @Injectable()
-export class CreateSupplierProductService {
+export class CreateSupplierProductService implements ICreateSupplierProductService {
   constructor(
-    private readonly supplierProductRepository: SupplierProductRepository
+    private readonly supplierProductRepository: SupplierProductRepository,
+    private readonly supplierProductFactoryService: SupplierProductFactoryService,
+    private readonly supplierProductValidationService: SupplierProductValidationService
   ) {}
 
   async execute(request: CreateSupplierProductRequest): Promise<SupplierProductResponseDto> {
     try {
-      // 1. Validate input
-      await this.validateRequest(request);
+      // 1. Validate input using validation service
+      this.supplierProductValidationService.validateCreateRequest(request);
 
       // 2. Check if SKU already exists
       const existingProduct = await this.supplierProductRepository.findBySku(request.sku);
       if (existingProduct) {
-        throw new ConflictException('Product with this SKU already exists');
+      throw new SupplierProductAlreadyExistsException(request.sku);
       }
 
       // 3. Category simplified: just a string name
@@ -55,14 +61,15 @@ export class CreateSupplierProductService {
         : new ProductSpecifications(new Map());
 
       // 6. Create images tied to the product ID
-      const images = (request.images || []).map((img, index) => 
-        new ProductImageOrm(
+      this.validateImages(request.images || []);
+      const images = (request.images || []).map((img) =>
+        ProductImageOrm.create(
           this.generateImageId(),
           productId,
           img.url,
           img.altText,
-          img.sortOrder,
-          img.isPrimary,
+          img.sortOrder ?? 0,
+          img.isPrimary ?? false,
           img.width,
           img.height,
           img.fileSize,
@@ -70,47 +77,50 @@ export class CreateSupplierProductService {
         )
       );
 
-      // 7. Create product aggregate
-      const product = new SupplierProductOrm(
-        productId,
-        request.supplierId,
-        request.name,
-        request.description,
-        request.shortDescription,
-        request.sku,
-        categoryName,
-        price,
-        inventory,
-        specifications,
-        request.type,
-        ProductStatus.DRAFT,
-        ApprovalStatus.PENDING,
-        images,
-        [],
-        request.tags || [],
-        request.isActive,
-        request.isFeatured,
-        false, // isSuspend = false by default
-        request.weight,
-        request.dimensions ? {
-          length: request.dimensions.length,
-          width: request.dimensions.width,
-          height: request.dimensions.height,
-          unit: request.dimensions.unit
-        } : undefined,
-        request.seoData ? {
-          metaTitle: request.seoData.metaTitle,
-          metaDescription: request.seoData.metaDescription,
-          keywords: request.seoData.keywords
-        } : undefined
-      );
+      // 7. Create product using factory service - pass Value Objects directly
+      const product = new SupplierProductOrm();
+      product.id = productId;
+      product.supplierId = request.supplierId;
+      product.name = request.name;
+      product.description = request.description;
+      product.shortDescription = request.shortDescription;
+      product.sku = request.sku;
+      product.categoryName = request.categoryName;
+      
+      // ✅ Convert Value Objects to JSONB only when saving
+      product.price = {
+        listingPrice: price.listingPrice,
+        retailPrice: price.retailPrice,
+        currency: price.currency
+      };
+      
+      product.inventory = {
+        quantity: inventory.quantity
+      };
+      
+      // ✅ Use Value Object toJSON method
+      product.specifications = specifications.toJSON();
+      
+      product.type = request.type;
+      product.status = ProductStatus.DRAFT;
+      product.approvalStatus = ApprovalStatus.PENDING;
+      product.images = images;
+      product.reviews = [];
+      product.tags = request.tags || [];
+      product.isActive = request.isActive ?? true;
+      product.isFeatured = request.isFeatured ?? false;
+      product.isSuspend = false;
+      product.weight = request.weight;
+      product.dimensions = request.dimensions;
+      product.seoData = request.seoData;
 
       // 8. Save product
       const savedProduct = await this.supplierProductRepository.save(product);
 
-      // 9. Update image product IDs
-      const updatedImages = savedProduct.images.map(img => 
-        new ProductImageOrm(
+      // 9. Update image product IDs (if needed)
+      // Note: savedProduct.images should already have correct productId from repository
+      const updatedImages = savedProduct.images.map((img) =>
+        ProductImageOrm.create(
           img.id,
           savedProduct.id,
           img.url,
@@ -124,37 +134,10 @@ export class CreateSupplierProductService {
         )
       );
 
-      const finalProduct = new SupplierProductOrm(
-        savedProduct.id,
-        savedProduct.supplierId,
-        savedProduct.name,
-        savedProduct.description,
-        savedProduct.shortDescription,
-        savedProduct.sku,
-        savedProduct.categoryName,
-        savedProduct.price,
-        savedProduct.inventory,
-        savedProduct.specifications,
-        savedProduct.type,
-        savedProduct.status,
-        savedProduct.approvalStatus,
-        updatedImages,
-        savedProduct.reviews,
-        savedProduct.tags,
-        savedProduct.isActive,
-        savedProduct.isFeatured,
-        savedProduct.isSuspend,
-        savedProduct.weight,
-        savedProduct.dimensions,
-        savedProduct.seoData,
-        savedProduct.createdAt,
-        savedProduct.updatedAt,
-        savedProduct.approvedAt,
-        savedProduct.approvedBy,
-        savedProduct.rejectionReason
-      );
+      // Use the saved product directly - no need to recreate
+      const finalProduct = savedProduct;
 
-      const updatedProduct = await this.supplierProductRepository.update(finalProduct);
+      const updatedProduct = await this.supplierProductRepository.updateProduct(finalProduct);
 
       // 10. Return response
       return SupplierProductMapper.toResponseDto(updatedProduct);
@@ -205,6 +188,35 @@ export class CreateSupplierProductService {
 
   private generateImageId(): string {
     return uuidv4();
+  }
+
+  /**
+   * Validates image data according to business rules
+   */
+  private validateImages(images: CreateSupplierProductRequest['images']): void {
+    if (!images || images.length === 0) {
+      return;
+    }
+
+    // Ensure at least one primary image if images are provided
+    const hasPrimaryImage = images.some((img) => img.isPrimary === true);
+    if (!hasPrimaryImage) {
+      throw new BadRequestException('At least one image must be marked as primary');
+    }
+
+    // Validate URLs
+    for (const img of images) {
+      if (!img.url || img.url.trim().length === 0) {
+        throw new BadRequestException('Image URL is required');
+      }
+
+      // Basic URL validation
+      try {
+        new URL(img.url);
+      } catch {
+        throw new BadRequestException(`Invalid image URL: ${img.url}`);
+      }
+    }
   }
 }
 

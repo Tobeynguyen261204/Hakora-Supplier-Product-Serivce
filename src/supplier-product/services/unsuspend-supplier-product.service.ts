@@ -1,11 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { SupplierProductRepository } from '../repositories/supplier-product.repository';
-import { SupplierProduct } from '../../domain/aggregates/supplier-product.aggregate';
+import { SupplierProductOrm } from '../entities/supplier-product.entity';
+import { SupplierProductBusinessService } from './supplier-product-business.service';
 
 @Injectable()
 export class UnsuspendSupplierProductService {
   constructor(
-    private readonly supplierProductRepository: SupplierProductRepository
+    private readonly supplierProductRepository: SupplierProductRepository,
+    private readonly supplierProductBusinessService: SupplierProductBusinessService
   ) {}
 
   async execute(id: string, reason: string, unsuspendedBy: string): Promise<{ success: boolean; message: string; data?: { id: string; isSuspend: boolean; reason: string; unsuspendedBy: string; updatedAt: Date } }> {
@@ -18,36 +20,9 @@ export class UnsuspendSupplierProductService {
       return { success: false, message: 'Product is not suspended' };
     }
 
-    // Create updated product with isSuspend = false
-    const unsuspendedProduct = new SupplierProduct(
-      product.id,
-      product.supplierId,
-      product.name,
-      product.description,
-      product.shortDescription,
-      product.sku,
-      product.categoryName,
-      product.price,
-      product.inventory,
-      product.specifications,
-      product.type,
-      product.status,
-      product.approvalStatus,
-      product.images,
-      product.reviews,
-      product.tags,
-      product.isActive,
-      product.isFeatured,
-      false, // isSuspend = false
-      product.weight,
-      product.dimensions,
-      product.seoData,
-      product.createdAt,
-      new Date(),
-      product.approvedAt,
-      product.approvedBy,
-      product.rejectionReason
-    );
+    // Unsuspend the product by setting isSuspend to false
+    product.isSuspend = false;
+    const unsuspendedProduct = product;
 
     await this.supplierProductRepository.save(unsuspendedProduct);
 

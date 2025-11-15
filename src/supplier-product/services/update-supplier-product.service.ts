@@ -9,11 +9,15 @@ import { ProductSpecifications } from '../value-objects/product-specifications.v
 import { ProductStatus } from '../enums/product-status.enum';
 import { ApprovalStatus } from '../enums/approval-status.enum';
 import { ProductType } from '../enums/product-type.enum';
+import { SupplierProductOrm } from '../entities/supplier-product.entity';
+import { SupplierProductFactoryService } from './supplier-product-factory.service';
+
 
 @Injectable()
 export class UpdateSupplierProductService {
   constructor(
-    private readonly supplierProductRepository: SupplierProductRepository
+    private readonly supplierProductRepository: SupplierProductRepository,
+    private readonly supplierProductFactoryService: SupplierProductFactoryService
   ) {}
 
   async execute(request: UpdateSupplierProductRequest): Promise<{ success: boolean; message: string; data?: SupplierProductResponseDto }> {
@@ -26,22 +30,32 @@ export class UpdateSupplierProductService {
         return { success: false, message: 'Product not found' };
       }
 
-      const newPrice = request.price
-        ? new ProductPrice(
-            request.price.listingPrice ?? existing.price.listingPrice,
-            request.price.retailPrice ?? existing.price.retailPrice,
-            request.price.currency ?? existing.price.currency
-          )
-        : existing.price;
+      // ✅ Create Value Object and use business methods for updates
+      const currentPrice = new ProductPrice(
+        existing.price.listingPrice,
+        existing.price.retailPrice,
+        existing.price.currency
+      );
 
-      const newInventory = request.inventory
-        ? new ProductInventory(request.inventory.quantity ?? existing.inventory.quantity)
-        : existing.inventory;
+      const newPrice = request.price
+        ? (request.price.listingPrice !== undefined 
+            ? currentPrice.updateListingPrice(request.price.listingPrice)
+            : request.price.retailPrice !== undefined
+            ? currentPrice.updateRetailPrice(request.price.retailPrice)
+            : currentPrice)
+        : currentPrice;
+
+      // ✅ Create Value Object and use business methods for updates
+      const currentInventory = new ProductInventory(existing.inventory.quantity);
+      
+      const newInventory = request.inventory?.quantity !== undefined
+        ? currentInventory.updateQuantity(request.inventory.quantity)
+        : currentInventory;
 
       // Merge specifications if provided
       const newSpecifications = request.specifications
         ? new ProductSpecifications(
-            new Map(Object.entries(request.specifications.specifications || Object.fromEntries(existing.specifications.specifications))),
+            new Map(Object.entries(request.specifications.specifications || existing.specifications.specifications || {})),
             request.specifications.materials ?? existing.specifications.materials,
             request.specifications.colors ?? existing.specifications.colors,
             request.specifications.sizes ?? existing.specifications.sizes
@@ -63,44 +77,53 @@ export class UpdateSupplierProductService {
         return existing.seoData;
       })();
 
-      const updated = new SupplierProduct(
-        existing.id,
-        request.supplierId ?? existing.supplierId,
-        request.name ?? existing.name,
-        request.description ?? existing.description,
-        request.shortDescription ?? existing.shortDescription,
-        request.sku ?? existing.sku,
-        request.categoryName ?? existing.categoryName,
-        newPrice,
-        newInventory,
-        newSpecifications,
-        (request.type ?? existing.type) as ProductType,
-        existing.status,
-        existing.approvalStatus,
-        existing.images,
-        existing.reviews,
-        request.tags ?? existing.tags,
-        request.isActive ?? existing.isActive,
-        request.isFeatured ?? existing.isFeatured,
-        existing.isSuspend,
-        request.weight ?? existing.weight,
-        nextDimensions && nextDimensions.length !== undefined && nextDimensions.width !== undefined && nextDimensions.height !== undefined && nextDimensions.unit
+      // ✅ Keep Value Objects for business logic, convert only when saving
+      const updated = new SupplierProductOrm();
+      updated.id = existing.id;
+      updated.supplierId = request.supplierId ?? existing.supplierId;
+      updated.name = request.name ?? existing.name;
+      updated.description = request.description ?? existing.description;
+      updated.shortDescription = request.shortDescription ?? existing.shortDescription;
+      updated.sku = request.sku ?? existing.sku;
+      updated.categoryName = request.categoryName ?? existing.categoryName;
+      
+      // ✅ Use Value Object business logic when converting to JSONB
+      updated.price = {
+        listingPrice: newPrice.listingPrice,
+        retailPrice: newPrice.retailPrice,
+        currency: newPrice.currency
+      };
+      
+      updated.inventory = {
+        quantity: newInventory.quantity
+      };
+      
+      // ✅ Use Value Object toJSON method if it's a Value Object
+      updated.specifications = newSpecifications instanceof ProductSpecifications 
+        ? newSpecifications.toJSON()
+        : newSpecifications;
+      
+      updated.type = (request.type ?? existing.type) as ProductType;
+      updated.status = existing.status;
+      updated.approvalStatus = existing.approvalStatus;
+      updated.images = existing.images;
+      updated.reviews = existing.reviews;
+      updated.tags = request.tags ?? existing.tags;
+      updated.isActive = request.isActive ?? existing.isActive;
+      updated.isFeatured = request.isFeatured ?? existing.isFeatured;
+      updated.isSuspend = existing.isSuspend;
+      updated.weight = request.weight ?? existing.weight;
+      updated.dimensions = nextDimensions && nextDimensions.length !== undefined && nextDimensions.width !== undefined && nextDimensions.height !== undefined && nextDimensions.unit
           ? {
               length: nextDimensions.length,
               width: nextDimensions.width,
               height: nextDimensions.height,
               unit: nextDimensions.unit
             }
-          : undefined,
-        nextSeoData,
-        existing.createdAt,
-        new Date(),
-        existing.approvedAt,
-        existing.approvedBy,
-        existing.rejectionReason
-      );
+        : undefined;
+      updated.seoData = nextSeoData;
 
-      const saved = await this.supplierProductRepository.update(updated);
+      const saved = await this.supplierProductRepository.updateProduct(updated);
       return { success: true, message: 'Updated', data: SupplierProductMapper.toResponseDto(saved) };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';

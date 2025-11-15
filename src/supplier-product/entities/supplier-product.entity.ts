@@ -1,7 +1,12 @@
 import { Entity, PrimaryColumn, Column, CreateDateColumn, UpdateDateColumn, OneToMany, Index } from 'typeorm';
 import { ProductImageOrm } from './product-image.entity';
 import { ProductReviewOrm } from './product-review.entity';
+import { ApprovalStatus } from '../enums/approval-status.enum';
+import { ProductStatus } from '../enums/product-status.enum';
+import { ProductPrice } from '../value-objects/product-price.vo';
+import { ProductInventory } from '../value-objects/product-inventory.vo';
 
+// Add ApprovalStatus enum definition or import
 @Entity('supplier_products')
 @Index(['supplierId'])
 @Index(['sku'], { unique: true })
@@ -124,4 +129,28 @@ export class SupplierProductOrm {
 
   @Column('text', { nullable: true })
   rejectionReason?: string;
+
+  // ✅ CHỈ basic computed properties (không có business logic)
+
+  get availableQuantity(): number {
+    return this.inventory.quantity;
+  }
+
+  get isInStock(): boolean {
+    return this.inventory.quantity > 0;
+  }
+
+
+  get isOutOfStock(): boolean {
+    return this.inventory.quantity === 0;
+  }
+
+  get reviewCount(): number {
+    return this.reviews ? this.reviews.length : 0;
+  }
+
+  get hasImages(): boolean {
+    return this.images && this.images.length > 0;
+  }
+
 }

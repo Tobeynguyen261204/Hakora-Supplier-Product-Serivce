@@ -1,6 +1,12 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { ConfigModule } from '@nestjs/config';
+import { APP_FILTER, APP_INTERCEPTOR, APP_GUARD, APP_PIPE } from '@nestjs/core';
+
+// Controllers
 import { SupplierProductController } from './controllers/supplier-product.controller';
+
+// Services
 import { CreateSupplierProductService } from './services/create-supplier-product.service';
 import { GetSupplierProductsService } from './services/get-supplier-products.service';
 import { ApproveSupplierProductService } from './services/approve-supplier-product.service';
@@ -11,18 +17,47 @@ import { RejectSupplierProductService } from './services/reject-supplier-product
 import { HideSupplierProductService } from './services/hide-supplier-product.service';
 import { SuspendSupplierProductService } from './services/suspend-supplier-product.service';
 import { UnhideSupplierProductService } from './services/unhide-supplier-product.service';
-import { SupplierProductRepository } from './repositories/supplier-product.repository';
 import { ListSupplierProductSellerViewService } from './services/list-supplier-product-seller-view.service';
 import { GetSupplierProductSellerViewService } from './services/get-supplier-product-seller-view.service';
 import { UnsuspendSupplierProductService } from './services/unsuspend-supplier-product.service';
 import { GetSupplierProductStatsService } from './services/get-supplier-product-stats.service';
 import { GetSupplierProductsByIdsService } from './services/get-supplier-products-by-ids.service';
+import { SupplierProductFactoryService } from './services/supplier-product-factory.service';
+import { SupplierProductBusinessService } from './services/supplier-product-business.service';
+import { SupplierProductValidationService } from './services/supplier-product-validation.service';
+
+// Mappers
+import { GrpcRequestMapper } from './mappers/grpc-request.mapper';
+import { GrpcResponseMapper } from './mappers/grpc-response.mapper';
+
+// Repositories
+import { SupplierProductRepository } from './repositories/supplier-product.repository';
+
+// Entities
 import { SupplierProductOrm } from './entities/supplier-product.entity';
 import { ProductImageOrm } from './entities/product-image.entity';
 import { ProductReviewOrm } from './entities/product-review.entity';
 
+// Configuration
+import { SupplierProductConfigService } from './config/supplier-product.config';
+import supplierProductConfig, { validate } from './config/validation.config';
+
+// Infrastructure
+import { SupplierProductExceptionFilter } from './filters/supplier-product-exception.filter';
+import { SupplierProductLoggingInterceptor } from './interceptors/supplier-product-logging.interceptor';
+import { SupplierProductTransformInterceptor } from './interceptors/supplier-product-transform.interceptor';
+import { SupplierProductAccessGuard } from './guards/supplier-product-access.guard';
+import { SupplierProductValidationPipe } from './pipes/supplier-product-validation.pipe';
+
+// Interfaces
+import { SUPPLIER_PRODUCT_CONSTANTS } from './constants/supplier-product.constants';
+
 @Module({
   imports: [
+    // Configuration
+    ConfigModule.forFeature(supplierProductConfig),
+    
+    // TypeORM
     TypeOrmModule.forFeature([
       SupplierProductOrm,
       ProductImageOrm,
@@ -31,9 +66,48 @@ import { ProductReviewOrm } from './entities/product-review.entity';
   ],
   controllers: [SupplierProductController],
   providers: [
-    // Repository - inject trực tiếp bằng class (NestJS way)
+    // Configuration
+    SupplierProductConfigService,
+    
+    // Infrastructure - Global providers
+    {
+      provide: APP_FILTER,
+      useClass: SupplierProductExceptionFilter,
+    },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: SupplierProductLoggingInterceptor,
+    },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: SupplierProductTransformInterceptor,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: SupplierProductAccessGuard,
+    },
+    {
+      provide: APP_PIPE,
+      useClass: SupplierProductValidationPipe,
+    },
+    
+    // Repository
+    {
+      provide: SUPPLIER_PRODUCT_CONSTANTS.TOKENS.SUPPLIER_PRODUCT_REPOSITORY,
+      useClass: SupplierProductRepository,
+    },
     SupplierProductRepository,
-    // Use Cases
+    
+    // Business Services (New Architecture)
+    SupplierProductFactoryService,
+    SupplierProductBusinessService,
+    SupplierProductValidationService,
+
+    // Mappers
+    GrpcRequestMapper,
+    GrpcResponseMapper,
+    
+    // Use Cases / Services
     CreateSupplierProductService,
     GetSupplierProductsService,
     GetSupplierProductService,
@@ -51,9 +125,19 @@ import { ProductReviewOrm } from './entities/product-review.entity';
     GetSupplierProductsByIdsService,
   ],
   exports: [
-    // Export repository nếu cần dùng ở module khác
+    // Configuration
+    SupplierProductConfigService,
+    
+    // Repository (for other modules)
     SupplierProductRepository,
-    // Export use cases
+    SUPPLIER_PRODUCT_CONSTANTS.TOKENS.SUPPLIER_PRODUCT_REPOSITORY,
+    
+    // Business Services (for other modules)
+    SupplierProductFactoryService,
+    SupplierProductBusinessService,
+    SupplierProductValidationService,
+    
+    // Use Cases (for other modules)
     CreateSupplierProductService,
     GetSupplierProductsService,
     GetSupplierProductService,

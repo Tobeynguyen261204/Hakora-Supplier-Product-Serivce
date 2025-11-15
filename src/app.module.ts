@@ -22,7 +22,7 @@ import { ProductReviewOrm } from './supplier-product/entities/product-review.ent
       entities: [SupplierProductOrm, ProductImageOrm, ProductReviewOrm],
       synchronize: false,
       migrations: [
-        __dirname + '/infrastructure/database/migrations/*{.ts,.js}',
+        __dirname + '/supplier-product/database/migrations/*{.ts,.js}',
       ],
       logging: process.env.NODE_ENV === 'development',
     }),

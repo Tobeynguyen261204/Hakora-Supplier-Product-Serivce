@@ -38,11 +38,13 @@ export class ListSupplierProductSellerViewService {
 
     const items: SupplierProductSellerViewListItemDto[] = products.map(p => {
       const categoryName = p.categoryName || null;
+      const listingPrice = p.price?.listingPrice || 0;
+      const retailPrice = p.price?.retailPrice || 0;
       const price: ProductPriceResponseDto = {
-        listingPrice: p.price?.listingPrice || 0,
-        retailPrice: p.price?.retailPrice || 0,
+        listingPrice,
+        retailPrice,
         currency: p.price?.currency || 'VND',
-        profitAmount: p.price?.profitAmount || 0
+        profitAmount: retailPrice - listingPrice
       };
       const imageUrl = (p.images || []).find(i => i.isPrimary)?.url || (p.images || [])[0]?.url || null;
       return {

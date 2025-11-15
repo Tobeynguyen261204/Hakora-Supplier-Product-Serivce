@@ -1,7 +1,7 @@
 import { IsString, IsNumber, IsOptional, IsArray, IsEnum, IsBoolean, ValidateNested, Min, Max, IsUUID } from 'class-validator';
 import { Type } from 'class-transformer';
-import { ProductType } from '../../domain/enums/product-type.enum';
-import { ProductStatus } from '../../domain/enums/product-status.enum';
+import { ProductType } from '../enums/product-type.enum';
+import { ProductStatus } from '../enums/product-status.enum';
 
 
 export class UpdateProductPriceDto {

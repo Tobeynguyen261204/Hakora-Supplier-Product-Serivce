@@ -1,11 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { SupplierProductRepository } from '../repositories/supplier-product.repository';
-import { SupplierProduct } from '../../domain/aggregates/supplier-product.aggregate';
+import { SupplierProductOrm } from '../entities/supplier-product.entity';
+import { SupplierProductBusinessService } from './supplier-product-business.service';
 
 @Injectable()
 export class SuspendSupplierProductService {
   constructor(
-    private readonly supplierProductRepository: SupplierProductRepository
+    private readonly supplierProductRepository: SupplierProductRepository,
+    private readonly supplierProductBusinessService: SupplierProductBusinessService
   ) {}
 
   async execute(id: string, reason: string, suspendedBy: string, suspensionDuration?: number): Promise<{ success: boolean; message: string; data?: { id: string; isSuspend: boolean; reason: string; suspendedBy: string; suspensionDuration?: number; updatedAt: Date } }> {
@@ -18,36 +20,8 @@ export class SuspendSupplierProductService {
       return { success: false, message: 'Product is already suspended' };
     }
 
-    // Create updated product with isSuspend = true
-    const suspendedProduct = new SupplierProduct(
-      product.id,
-      product.supplierId,
-      product.name,
-      product.description,
-      product.shortDescription,
-      product.sku,
-      product.categoryName,
-      product.price,
-      product.inventory,
-      product.specifications,
-      product.type,
-      product.status,
-      product.approvalStatus,
-      product.images,
-      product.reviews,
-      product.tags,
-      product.isActive,
-      product.isFeatured,
-      true, // isSuspend = true
-      product.weight,
-      product.dimensions,
-      product.seoData,
-      product.createdAt,
-      new Date(),
-      product.approvedAt,
-      product.approvedBy,
-      product.rejectionReason
-    );
+    // Suspend the product using business service
+    const suspendedProduct = this.supplierProductBusinessService.suspend(product);
 
     await this.supplierProductRepository.save(suspendedProduct);
 

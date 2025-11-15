@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { SupplierProductRepository } from '../repositories/supplier-product.repository';
-import { ProductStatus } from '../../domain/enums/product-status.enum';
+import { ProductStatus } from '../enums/product-status.enum';
+import { SupplierProductBusinessService } from './supplier-product-business.service';
 
 export interface HideSupplierProductRequest {
   id: string;
@@ -11,7 +12,8 @@ export interface HideSupplierProductRequest {
 @Injectable()
 export class HideSupplierProductService {
   constructor(
-    private readonly supplierProductRepository: SupplierProductRepository
+    private readonly supplierProductRepository: SupplierProductRepository,
+    private readonly supplierProductBusinessService: SupplierProductBusinessService
   ) {}
 
   async execute(request: HideSupplierProductRequest): Promise<any> {
@@ -44,8 +46,8 @@ export class HideSupplierProductService {
       throw new BadRequestException('Product is already hidden');
     }
 
-    // Hide the product using domain method
-    const updatedProduct = product.hide();
+    // Hide the product using business service
+    const updatedProduct = this.supplierProductBusinessService.hide(product);
     
     // Add admin action note
     const adminNote = {

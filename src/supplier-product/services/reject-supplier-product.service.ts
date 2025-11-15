@@ -2,11 +2,13 @@ import { Injectable, NotFoundException, BadRequestException } from '@nestjs/comm
 import { SupplierProductRepository } from '../repositories/supplier-product.repository';
 import { SupplierProductResponseDto } from '../dto/supplier-product-response.dto';
 import { SupplierProductMapper } from '../mappers/supplier-product.mapper';
+import { SupplierProductBusinessService } from './supplier-product-business.service';
 
 @Injectable()
 export class RejectSupplierProductService {
   constructor(
-    private readonly supplierProductRepository: SupplierProductRepository
+    private readonly supplierProductRepository: SupplierProductRepository,
+    private readonly supplierProductBusinessService: SupplierProductBusinessService
   ) {}
 
   async execute(productId: string, reason: string, rejectedBy: string): Promise<SupplierProductResponseDto> {
@@ -17,11 +19,11 @@ export class RejectSupplierProductService {
     }
 
     // 2. Check if product can be rejected
-    if (product.isRejected) {
+    if (product.approvalStatus === 'REJECTED') {
       throw new BadRequestException('Product is already rejected');
     }
 
-    if (product.isApproved) {
+    if (product.approvalStatus === 'APPROVED') {
       throw new BadRequestException('Cannot reject an approved product');
     }
 
@@ -30,11 +32,11 @@ export class RejectSupplierProductService {
       throw new BadRequestException('Rejection reason is required');
     }
 
-    // 4. Reject product
-    const rejectedProduct = product.reject(reason, rejectedBy);
+    // 4. Reject product using business service
+    const rejectedProduct = this.supplierProductBusinessService.reject(product, reason, rejectedBy);
 
     // 5. Save rejected product
-    const savedProduct = await this.supplierProductRepository.update(rejectedProduct);
+    const savedProduct = await this.supplierProductRepository.updateProduct(rejectedProduct);
 
     // 6. Return response
     return SupplierProductMapper.toResponseDto(savedProduct);
