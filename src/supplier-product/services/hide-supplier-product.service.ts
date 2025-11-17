@@ -1,13 +1,9 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { SupplierProductRepository } from '../repositories/supplier-product.repository';
 import { ProductStatus } from '../enums/product-status.enum';
 import { SupplierProductBusinessService } from './supplier-product-business.service';
-
-export interface HideSupplierProductRequest {
-  id: string;
-  reason: string;
-  hiddenBy: string;
-}
+import { SupplierProductNotFoundException, SupplierProductBusinessRuleException, SupplierProductValidationException } from '../exceptions/supplier-product.exceptions';
+import { HideSupplierProductRequest } from '../dto/common-request.dto';
 
 @Injectable()
 export class HideSupplierProductService {
@@ -16,34 +12,34 @@ export class HideSupplierProductService {
     private readonly supplierProductBusinessService: SupplierProductBusinessService
   ) {}
 
-  async execute(request: HideSupplierProductRequest): Promise<any> {
+  async execute(request: HideSupplierProductRequest): Promise<{ success: boolean; message: string; data?: any }> {
     const { id, reason, hiddenBy } = request;
 
     if (!id) {
-      throw new BadRequestException('Product ID is required');
+      throw new SupplierProductValidationException('Product ID is required');
     }
 
     if (!reason || reason.trim().length === 0) {
-      throw new BadRequestException('Reason for hiding product is required');
+      throw new SupplierProductValidationException('Reason for hiding product is required');
     }
 
     if (!hiddenBy) {
-      throw new BadRequestException('Admin ID who hides the product is required');
+      throw new SupplierProductValidationException('Admin ID who hides the product is required');
     }
 
     // Get the product
     const product = await this.supplierProductRepository.findById(id);
     if (!product) {
-      throw new NotFoundException('Product not found');
+      throw new SupplierProductNotFoundException(id);
     }
 
     // Check if product can be hidden
     if (product.isSuspend) {
-      throw new BadRequestException('Cannot hide a suspended product');
+      throw new SupplierProductBusinessRuleException('Cannot hide a suspended product');
     }
 
     if (!product.isActive) {
-      throw new BadRequestException('Product is already hidden');
+      throw new SupplierProductBusinessRuleException('Product is already hidden');
     }
 
     // Hide the product using business service

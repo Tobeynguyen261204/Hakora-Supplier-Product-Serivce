@@ -8,10 +8,13 @@ Module này được tổ chức theo chuẩn NestJS, mỗi folder có vai trò 
 
 ## 🔄 Codeflow Tổng Quan
 
+### Main Business Flow (Core Logic)
+Flow chính xử lý business logic từ request đến response:
+
 ```
 Client Request (gRPC)
     ↓
-[controllers/] → Nhận request, validate input
+[controllers/] → Nhận request, gọi service
     ↓
 [services/] → Xử lý business logic (use cases)
     ↓
@@ -24,22 +27,92 @@ Client Request (gRPC)
 Response (gRPC) → Client
 ```
 
-**Middleware Flow:**
+### Middleware Flow (Cross-Cutting Concerns)
+Flow này CHẠY TRƯỚC và SAU business flow, xử lý các concerns chung:
+
 ```
-Request
+Request vào
     ↓
-[guards/] → Authorization check
+[guards/] → Kiểm tra authentication/authorization
+    ↓        (Nếu fail → throw exception → filter xử lý)
+[pipes/] → Validate và transform input data
+    ↓        (Nếu fail → throw exception → filter xử lý)
+[interceptors/] → Logging (before controller), Transform response (after)
     ↓
-[pipes/] → Validation
+Controller (main business flow ở trên)
     ↓
-[interceptors/] → Logging, Transform
+[interceptors/] → Transform response, Logging (after)
     ↓
-Controller
-    ↓
-[filters/] → Error handling
-    ↓
-Response
+[filters/] → Catch exceptions (từ mọi nơi: guards, pipes, services, repositories)
+    ↓        Transform errors → standard format
+Response ra
 ```
+
+### ❓ Tại sao tách thành 2 flow riêng?
+
+1. **Separation of Concerns (Tách biệt mối quan tâm)**
+   - **Business Flow**: Xử lý logic nghiệp vụ (CRUD, business rules)
+   - **Middleware Flow**: Xử lý các concerns chung (security, validation, logging, error handling)
+
+2. **Không phải lúc nào cũng chạy**
+   - Middleware có thể được apply ở **global**, **controller**, hoặc **method level**
+   - Có thể **bỏ qua** hoặc **tùy chỉnh** cho từng endpoint
+   - Ví dụ: Endpoint public không cần guard, endpoint private cần guard
+
+3. **Cross-Cutting Concerns**
+   - Guards, Pipes, Interceptors, Filters là **infrastructure concerns**
+   - Áp dụng cho **tất cả** hoặc **nhiều** endpoints
+   - Tách riêng để dễ maintain và reuse
+
+4. **Thứ tự thực thi của NestJS**
+   ```
+   Request
+   ↓
+   Global Guards (chạy đầu tiên)
+   ↓
+   Controller Guards
+   ↓
+   Route Guards
+   ↓
+   Global Pipes (transform + validate)
+   ↓
+   Route Pipes
+   ↓
+   Global Interceptors (before)
+   ↓
+   Route Interceptors (before)
+   ↓
+   Controller Method (business logic)
+   ↓
+   Route Interceptors (after)
+   ↓
+   Global Interceptors (after)
+   ↓
+   Global Filters (catch exceptions nếu có)
+   ↓
+   Response
+   ```
+
+5. **Ví dụ thực tế:**
+   ```typescript
+   // supplier-product.module.ts
+   // Đăng ký GLOBAL - chạy cho TẤT CẢ endpoints
+   {
+     provide: APP_GUARD,
+     useClass: SupplierProductAccessGuard,  // Chạy trước MỌI request
+   }
+   
+   // Có thể bỏ qua guard ở method level:
+   @UseGuards()  // Không dùng guard cho method này
+   async publicMethod() { ... }
+   ```
+
+### 📌 Điểm quan trọng:
+
+- **Middleware chạy TRƯỚC và SAU** business logic
+- **Có thể skip** middleware ở level thấp hơn (method > controller > global)
+- **Filters** catch exceptions từ **MỌI NƠI** (guards, pipes, services, repositories)
+- **Tách riêng** để dễ test, maintain, và apply linh hoạt
 
 ---
 
@@ -383,40 +456,15 @@ export enum ProductStatus {
 
 ---
 
-### 9. **`interfaces/`** - TypeScript Contracts
-**Ý nghĩa:** Định nghĩa contracts/abstractions cho dependency injection
+### 9. **`interfaces/`** - TypeScript Contracts (Optional)
+**Ý nghĩa:** Định nghĩa contracts/abstractions (không bắt buộc cho project sinh viên)
 
-**Vai trò:**
-- Loose coupling
-- Testability (mock interfaces)
-- Type safety
-- Contracts between layers
+**Lưu ý:**
+- Project sinh viên không cần interface pattern (đơn giản hơn)
+- Services và Repository inject class trực tiếp
+- Interface chỉ dùng khi cần loose coupling phức tạp (không cần cho project sinh viên)
 
-**Import vào:**
-- `services/*` (implement interfaces)
-- `repositories/*` (implement interfaces)
-- `supplier-product.module.ts` (injection tokens)
-
-**Import từ:**
-- `../entities/*` - Entity types
-- `../dto/*` - DTO types
-- `../enums/*` - Enum types
-
-**Ví dụ:**
-```typescript
-// interfaces/supplier-product-repository.interface.ts
-export interface ISupplierProductRepository {
-  findById(id: string): Promise<SupplierProductOrm | null>;
-  save(product: SupplierProductOrm): Promise<SupplierProductOrm>;
-}
-
-// repositories/supplier-product.repository.ts
-export class SupplierProductRepository implements ISupplierProductRepository {
-  // Implementation
-}
-```
-
-**Codeflow:** Contracts for dependency injection
+**Codeflow:** Optional - không sử dụng trong project này
 
 ---
 
@@ -804,6 +852,182 @@ mappers/   value-objects/  constants/
 
 ---
 
+## 📊 Phân Tích Cấu Trúc Folder
+
+### Thống Kê Hiện Tại
+
+**Tổng số folders: 19**
+
+**Phân loại:**
+- **Business Flow (9 folders)**: `controllers/`, `services/`, `repositories/`, `entities/`, `dto/`, `mappers/`, `value-objects/`, `interfaces/`, `enums/`
+- **Middleware Flow (6 folders)**: `guards/`, `pipes/`, `interceptors/`, `filters/`, `decorators/`, `exceptions/`
+- **Infrastructure/Shared (4 folders)**: `constants/`, `config/`, `utils/`, `database/`
+
+**Middleware Flow chiếm: 6/19 = 31.6%** (không phải phân nửa, nhưng khá nhiều)
+
+### ✅ Folders Middleware **CẦN THIẾT** (4 folders cốt lõi)
+
+Theo chuẩn NestJS enterprise, **4 folders này là BẮT BUỘC** cho mọi dự án:
+
+1. **`guards/`** ✅ - Authentication/Authorization (CỐT LÕI)
+2. **`pipes/`** ✅ - Validation & Transformation (CỐT LÕI)
+3. **`interceptors/`** ✅ - Logging, Transform Response (CỐT LÕI)
+4. **`filters/`** ✅ - Exception Handling (CỐT LÕI)
+
+→ **4 folders này KHÔNG THỪA**, là best practice của NestJS.
+
+### ⚠️ Folders Middleware **CÓ THỂ TỐI ƯU** (2 folders)
+
+#### 1. **`decorators/`** - Có thể gộp với `guards/`
+
+**Lý do:**
+- Decorators thường dùng để set metadata cho guards (ví dụ: `@Roles()`, `@Public()`, `@GetCurrentUser()`)
+- Trong project hiện tại: chỉ có **1 file** với 3 decorators
+- Trong enterprise apps lớn: thường gộp vào `guards/` vì liên quan chặt chẽ
+
+**Recommendation:**
+- **Dự án nhỏ** (1-5 modules): Gộp `decorators/` vào `guards/decorators.ts`
+- **Dự án lớn** (>5 modules): Giữ riêng `decorators/` nếu có >3 files
+
+**Code hiện tại:**
+```typescript
+// decorators/supplier-product.decorators.ts
+// Chỉ có 3 decorators: GetCurrentUser, GetRequestData, GetPagination
+// → Có thể gộp vào guards/
+```
+
+#### 2. **`exceptions/`** - Có thể gộp với `filters/`
+
+**Lý do:**
+- Exceptions được sử dụng bởi filters để xử lý errors
+- Trong project hiện tại: chỉ có **1 file** với 6 custom exceptions
+- Trong enterprise apps lớn: thường gộp vào `filters/` hoặc `common/exceptions/`
+
+**Recommendation:**
+- **Dự án nhỏ**: Gộp `exceptions/` vào `filters/exceptions.ts`
+- **Dự án lớn**: Giữ riêng `exceptions/` nếu có >5 custom exception classes
+
+**Code hiện tại:**
+```typescript
+// exceptions/supplier-product.exceptions.ts
+// Chỉ có 6 custom exceptions
+// → Có thể gộp vào filters/
+```
+
+### 🏢 So Sánh Với NestJS Enterprise
+
+**Trong các dự án enterprise chuyên nghiệp:**
+
+1. **Thông thường** (nhỏ - trung bình):
+   ```
+   guards/
+   pipes/
+   interceptors/
+   filters/ (gộp exceptions/)
+   common/ (gộp decorators/)
+   ```
+   → **4-5 folders** cho middleware
+
+2. **Lớn** (enterprise scale):
+   ```
+   guards/
+   pipes/
+   interceptors/
+   filters/
+   exceptions/ (tách riêng nếu >10 custom exceptions)
+   decorators/ (tách riêng nếu >5 files)
+   ```
+   → **6 folders** như hiện tại
+
+3. **Shared/Common** (nếu dùng chung giữa modules):
+   ```
+   src/common/guards/
+   src/common/pipes/
+   src/common/interceptors/
+   src/common/filters/
+   src/common/decorators/
+   src/common/exceptions/
+   ```
+   → **Nâng lên global level** thay vì module level
+
+### 💡 Recommendations
+
+#### Option 1: **Tối ưu cho dự án nhỏ** (Recommended cho project hiện tại)
+
+**Gộp 2 folders:**
+- `decorators/` → Gộp vào `guards/decorators.ts`
+- `exceptions/` → Gộp vào `filters/exceptions.ts`
+
+**Kết quả:** Giảm từ **6 folders** → **4 folders** middleware
+```
+guards/
+  - supplier-product-access.guard.ts
+  - decorators.ts (moved from decorators/)
+pipes/
+interceptors/
+filters/
+  - supplier-product-exception.filter.ts
+  - exceptions.ts (moved from exceptions/)
+```
+
+**Ưu điểm:**
+- ✅ Giảm số lượng folders
+- ✅ Vẫn giữ được tính tổ chức
+- ✅ Phù hợp với dự án nhỏ-trung bình
+
+#### Option 2: **Giữ nguyên** (Nếu dự án sẽ mở rộng)
+
+**Lý do giữ nguyên:**
+- ✅ Chuẩn bị cho việc mở rộng sau này
+- ✅ Dễ tách khi có nhiều files hơn
+- ✅ Tổ chức rõ ràng từ đầu
+
+**Nên giữ nếu:**
+- Dự án sẽ có >5 modules
+- Sẽ có nhiều custom decorators/exceptions
+- Team lớn, cần tách biệt rõ ràng
+
+#### Option 3: **Nâng lên Global** (Nếu dùng chung)
+
+**Nếu middleware dùng chung giữa nhiều modules:**
+```
+src/common/
+  - guards/
+  - pipes/
+  - interceptors/
+  - filters/
+  - decorators/
+  - exceptions/
+```
+
+**Ưu điểm:**
+- ✅ Reuse giữa các modules
+- ✅ Centralized configuration
+- ✅ Phù hợp với microservices architecture
+
+### 📌 Kết Luận về Middleware Folders
+
+| Folder | Cần thiết? | Có thể gộp? | Recommendation |
+|--------|-----------|-------------|----------------|
+| `guards/` | ✅ **CỐT LÕI** | ❌ Không | **Giữ riêng** |
+| `pipes/` | ✅ **CỐT LÕI** | ❌ Không | **Giữ riêng** |
+| `interceptors/` | ✅ **CỐT LÕI** | ❌ Không | **Giữ riêng** |
+| `filters/` | ✅ **CỐT LÕI** | ❌ Không | **Giữ riêng** |
+| `decorators/` | ⚠️ **Tùy** | ✅ Có thể | **Gộp vào guards/** (nếu <5 files) |
+| `exceptions/` | ⚠️ **Tùy** | ✅ Có thể | **Gộp vào filters/** (nếu <10 classes) |
+
+**Kết luận:**
+- **4 folders cốt lõi (guards, pipes, interceptors, filters) là BẮT BUỘC** ✅
+- **2 folders (decorators, exceptions) CÓ THỂ TỐI ƯU** tùy quy mô dự án
+- **Cấu trúc hiện tại KHÔNG THỪA**, nhưng có thể tối ưu cho dự án nhỏ
+
+---
+
 ## 📝 Kết Luận
 
 Mỗi folder có vai trò rõ ràng trong codeflow, tuân thủ Single Responsibility Principle. Cấu trúc này giúp code dễ maintain, test, và scale.
+
+**Về middleware flow:**
+- ✅ **4 folders cốt lõi (guards, pipes, interceptors, filters) là chuẩn NestJS** - KHÔNG THỪA
+- ⚠️ **2 folders (decorators, exceptions) có thể tối ưu** - Gộp vào guards/filters nếu dự án nhỏ
+- 📊 **Middleware chiếm 31.6%** là bình thường cho dự án enterprise

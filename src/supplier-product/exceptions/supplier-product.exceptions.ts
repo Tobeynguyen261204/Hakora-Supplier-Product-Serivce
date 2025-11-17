@@ -1,59 +1,73 @@
-import { HttpException, HttpStatus } from '@nestjs/common';
+import { RpcException } from '@nestjs/microservices';
 import { SUPPLIER_PRODUCT_CONSTANTS } from '../constants/supplier-product.constants';
 
-export class SupplierProductNotFoundException extends HttpException {
+/**
+ * gRPC Status Codes:
+ * - NOT_FOUND = 5
+ * - ALREADY_EXISTS = 6
+ * - INVALID_ARGUMENT = 3
+ * - PERMISSION_DENIED = 7
+ * - INTERNAL = 13
+ */
+
+export class SupplierProductNotFoundException extends RpcException {
   constructor(id?: string) {
     const message = id 
       ? `${SUPPLIER_PRODUCT_CONSTANTS.ERRORS.PRODUCT_NOT_FOUND}: ${id}`
       : SUPPLIER_PRODUCT_CONSTANTS.ERRORS.PRODUCT_NOT_FOUND;
-    super(message, HttpStatus.NOT_FOUND);
+    super({
+      code: 5, // NOT_FOUND
+      message,
+    });
   }
 }
 
-export class SupplierProductAlreadyExistsException extends HttpException {
+export class SupplierProductAlreadyExistsException extends RpcException {
   constructor(sku: string) {
-    super(
-      `${SUPPLIER_PRODUCT_CONSTANTS.ERRORS.SKU_ALREADY_EXISTS}: ${sku}`,
-      HttpStatus.CONFLICT
-    );
+    super({
+      code: 6, // ALREADY_EXISTS
+      message: `${SUPPLIER_PRODUCT_CONSTANTS.ERRORS.SKU_ALREADY_EXISTS}: ${sku}`,
+    });
   }
 }
 
-export class SupplierProductValidationException extends HttpException {
+export class SupplierProductValidationException extends RpcException {
   constructor(message: string, errors?: any[]) {
-    super(
-      {
-        message: `${SUPPLIER_PRODUCT_CONSTANTS.ERRORS.VALIDATION_FAILED}: ${message}`,
-        errors,
-      },
-      HttpStatus.BAD_REQUEST
-    );
+    super({
+      code: 3, // INVALID_ARGUMENT
+      message: `${SUPPLIER_PRODUCT_CONSTANTS.ERRORS.VALIDATION_FAILED}: ${message}`,
+      details: errors,
+    });
   }
 }
 
-export class SupplierProductBusinessRuleException extends HttpException {
+export class SupplierProductBusinessRuleException extends RpcException {
   constructor(message: string) {
-    super(message, HttpStatus.BAD_REQUEST);
+    super({
+      code: 3, // INVALID_ARGUMENT
+      message,
+    });
   }
 }
 
-export class SupplierProductUnauthorizedException extends HttpException {
+export class SupplierProductUnauthorizedException extends RpcException {
   constructor(action?: string) {
     const message = action
       ? `${SUPPLIER_PRODUCT_CONSTANTS.ERRORS.UNAUTHORIZED_ACTION}: ${action}`
       : SUPPLIER_PRODUCT_CONSTANTS.ERRORS.UNAUTHORIZED_ACTION;
-    super(message, HttpStatus.FORBIDDEN);
+    super({
+      code: 7, // PERMISSION_DENIED
+      message,
+    });
   }
 }
 
-export class SupplierProductInternalException extends HttpException {
+export class SupplierProductInternalException extends RpcException {
   constructor(originalError?: Error) {
-    super(
-      {
-        message: SUPPLIER_PRODUCT_CONSTANTS.ERRORS.INTERNAL_ERROR,
-        originalError: originalError?.message,
-      },
-      HttpStatus.INTERNAL_SERVER_ERROR
-    );
+    super({
+      code: 13, // INTERNAL
+      message: SUPPLIER_PRODUCT_CONSTANTS.ERRORS.INTERNAL_ERROR,
+      details: originalError?.message,
+    });
   }
 }

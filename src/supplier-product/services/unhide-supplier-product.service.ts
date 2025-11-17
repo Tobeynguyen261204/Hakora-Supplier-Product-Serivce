@@ -1,13 +1,10 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { SupplierProductRepository } from '../repositories/supplier-product.repository';
 import { ProductStatus } from '../enums/product-status.enum';
 import { SupplierProductOrm } from '../entities/supplier-product.entity';
 import { SupplierProductBusinessService } from './supplier-product-business.service';
-
-export interface UnhideSupplierProductRequest {
-  id: string;
-  unhiddenBy: string;
-}
+import { SupplierProductNotFoundException, SupplierProductBusinessRuleException, SupplierProductValidationException } from '../exceptions/supplier-product.exceptions';
+import { UnhideSupplierProductRequest } from '../dto/common-request.dto';
 
 @Injectable()
 export class UnhideSupplierProductService {
@@ -16,23 +13,23 @@ export class UnhideSupplierProductService {
     private readonly supplierProductBusinessService: SupplierProductBusinessService
   ) {}
 
-  async execute(request: UnhideSupplierProductRequest): Promise<any> {
+  async execute(request: UnhideSupplierProductRequest): Promise<{ success: boolean; message: string; data?: any }> {
     const { id, unhiddenBy } = request;
 
     if (!id) {
-      throw new BadRequestException('Product ID is required');
+      throw new SupplierProductValidationException('Product ID is required');
     }
     if (!unhiddenBy) {
-      throw new BadRequestException('Supplier ID who unhides the product is required');
+      throw new SupplierProductValidationException('Supplier ID who unhides the product is required');
     }
 
     const product = await this.supplierProductRepository.findById(id);
     if (!product) {
-      throw new NotFoundException('Product not found');
+      throw new SupplierProductNotFoundException(id);
     }
 
     if (product.isActive) {
-      throw new BadRequestException('Product is not hidden');
+      throw new SupplierProductBusinessRuleException('Product is not hidden');
     }
 
     // Unhide the product by setting isActive to true

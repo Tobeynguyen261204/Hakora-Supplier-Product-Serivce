@@ -2,10 +2,10 @@ import {
   PipeTransform,
   Injectable,
   ArgumentMetadata,
-  BadRequestException,
 } from '@nestjs/common';
+import { RpcException } from '@nestjs/microservices';
 import { validate } from 'class-validator';
-import { plainToClass } from 'class-transformer';
+import { plainToInstance } from 'class-transformer';
 import { SUPPLIER_PRODUCT_CONSTANTS } from '../constants/supplier-product.constants';
 
 @Injectable()
@@ -15,7 +15,7 @@ export class SupplierProductValidationPipe implements PipeTransform<any> {
       return value;
     }
 
-    const object = plainToClass(metatype, value);
+    const object = plainToInstance(metatype, value);
     const errors = await validate(object);
 
     if (errors.length > 0) {
@@ -23,9 +23,11 @@ export class SupplierProductValidationPipe implements PipeTransform<any> {
         return Object.values(error.constraints || {}).join(', ');
       });
 
-      throw new BadRequestException({
+      // Throw RpcException cho gRPC (code 3 = INVALID_ARGUMENT)
+      throw new RpcException({
+        code: 3, // INVALID_ARGUMENT
         message: SUPPLIER_PRODUCT_CONSTANTS.ERRORS.VALIDATION_FAILED,
-        errors: errorMessages,
+        details: errorMessages,
       });
     }
 
@@ -44,7 +46,11 @@ export class ParseUUIDPipe implements PipeTransform<string, string> {
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
     
     if (!value || !uuidRegex.test(value)) {
-      throw new BadRequestException(SUPPLIER_PRODUCT_CONSTANTS.ERRORS.INVALID_ID);
+      // Throw RpcException cho gRPC (code 3 = INVALID_ARGUMENT)
+      throw new RpcException({
+        code: 3, // INVALID_ARGUMENT
+        message: SUPPLIER_PRODUCT_CONSTANTS.ERRORS.INVALID_ID,
+      });
     }
     
     return value;

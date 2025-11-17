@@ -102,7 +102,7 @@ export class GrpcRequestMapper {
       status: EnumMapper.toProductStatus(data.status),
       approvalStatus: EnumMapper.toApprovalStatus(data.approvalStatus),
       supplierId: data.supplierId,
-      categoryName: data.categoryName,
+      categoryName: data.categoryName, 
       type: EnumMapper.toProductType(data.type),
       minPrice: data.minPrice,
       maxPrice: data.maxPrice,
@@ -218,12 +218,12 @@ export class GrpcRequestMapper {
   toListSupplierProductSellerViewRequest(data: GrpcRequest): {
     page: number;
     limit: number;
-    filters: { categoryId?: string; search?: string; supplierId?: string };
+    filters: { categoryName?: string; search?: string; supplierId?: string };
   } {
     const page = data.page || 1;
     const limit = data.limit || 10;
     const filters = { 
-      categoryId: data.categoryId, 
+      categoryName: data.categoryName , 
       search: data.search, 
       supplierId: data.supplierId 
     };

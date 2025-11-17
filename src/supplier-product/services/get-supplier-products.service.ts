@@ -1,16 +1,18 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { SupplierProductRepository } from '../repositories/supplier-product.repository';
 import { SupplierProductListResponseDto } from '../dto/supplier-product-response.dto';
+import { SupplierProductMapper } from '../mappers/supplier-product.mapper';
 import { ProductStatus } from '../enums/product-status.enum';
 import { ApprovalStatus } from '../enums/approval-status.enum';
 import { ProductType } from '../enums/product-type.enum';
-import { SupplierProductMapper } from '../mappers/supplier-product.mapper';
+import { SupplierProductComputedPropertiesService } from './supplier-product-computed-properties.service';
+import { SupplierProductValidationException } from '../exceptions/supplier-product.exceptions';
 
 export interface GetSupplierProductsFilters {
   status?: ProductStatus;
   approvalStatus?: ApprovalStatus;
   supplierId?: string;
-  categoryId?: string; // kept to not break callers; repository will map to categoryName
+  categoryName?: string;
   type?: ProductType;
   minPrice?: number;
   maxPrice?: number;
@@ -24,7 +26,8 @@ export interface GetSupplierProductsFilters {
 @Injectable()
 export class GetSupplierProductsService {
   constructor(
-    private readonly supplierProductRepository: SupplierProductRepository
+    private readonly supplierProductRepository: SupplierProductRepository,
+    private readonly computedPropertiesService: SupplierProductComputedPropertiesService
   ) {}
 
   async execute(
@@ -40,9 +43,9 @@ export class GetSupplierProductsService {
       // 2. Get products with pagination
       const result = await this.supplierProductRepository.findWithPagination(page, limit, filters);
 
-      // 3. Map to response DTOs
+      // 3. Map to response DTOs với computed properties (mapper tự động orchestrate)
       const productDtos = result.products.map(product => 
-        SupplierProductMapper.toResponseDto(product)
+        SupplierProductMapper.toResponseDtoWithComputed(product, this.computedPropertiesService)
       );
 
       // 4. Return response
@@ -54,13 +57,13 @@ export class GetSupplierProductsService {
         totalPages: result.totalPages
       };
     } catch (error) {
-      // Re-throw NestJS exceptions
-      if (error instanceof BadRequestException) {
+      // Re-throw RpcException
+      if (error instanceof SupplierProductValidationException) {
         throw error;
       }
       // Wrap other errors
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-      throw new BadRequestException(`Failed to get supplier products: ${errorMessage}`);
+      throw new SupplierProductValidationException(`Failed to get supplier products: ${errorMessage}`);
     }
   }
 
@@ -73,13 +76,13 @@ export class GetSupplierProductsService {
     return this.execute(page, limit, { ...filters, supplierId });
   }
 
-  async getByCategoryId(
-    categoryId: string,
+  async getByCategoryName(
+    categoryName: string,
     page: number = 1,
     limit: number = 10,
-    filters: Omit<GetSupplierProductsFilters, 'categoryId'> = {}
+    filters: Omit<GetSupplierProductsFilters, 'categoryName'> = {}
   ): Promise<SupplierProductListResponseDto> {
-    return this.execute(page, limit, { ...filters, categoryId });
+    return this.execute(page, limit, { ...filters, categoryName });
   }
 
   async getPendingApproval(

@@ -15,49 +15,25 @@ import { GetSupplierProductSellerViewService } from '../services/get-supplier-pr
 import { UnsuspendSupplierProductService } from '../services/unsuspend-supplier-product.service';
 import { GetSupplierProductStatsService } from '../services/get-supplier-product-stats.service';
 import { GetSupplierProductsByIdsService } from '../services/get-supplier-products-by-ids.service';
-import { GrpcRequestMapper } from '../mappers/grpc-request.mapper';
 import { GrpcResponseMapper } from '../mappers/grpc-response.mapper';
+import { CreateSupplierProductRequest } from '../dto/create-supplier-product-request.dto';
+import { UpdateSupplierProductRequest } from '../dto/update-supplier-product-request.dto';
+import {
+  GetByIdRequest,
+  GetBySupplierIdRequest,
+  GetSupplierProductsRequest,
+  ApproveSupplierProductRequest,
+  RejectSupplierProductRequest,
+  HideSupplierProductRequest,
+  UnhideSupplierProductRequest,
+  SuspendSupplierProductRequest,
+  UnsuspendSupplierProductRequest,
+  GetSupplierProductsByIdsRequest,
+  ListSupplierProductSellerViewRequest,
+} from '../dto/common-request.dto';
+import { Public } from '../decorators/public.decorator';
 
-// gRPC Request/Response types
-interface GrpcRequest {
-  id?: string;
-  supplierId?: string;
-  page?: number;
-  limit?: number;
-  status?: string | number;
-  approvalStatus?: string | number;
-  type?: string | number;
-  categoryId?: string;
-  categoryName?: string;
-  minPrice?: number;
-  maxPrice?: number;
-  tags?: string[];
-  search?: string;
-  isActive?: boolean;
-  isFeatured?: boolean;
-  isSuspend?: boolean;
-  name?: string;
-  description?: string;
-  shortDescription?: string;
-  sku?: string;
-  price?: { listingPrice?: number; retailPrice?: number; currency?: string };
-  inventory?: { quantity?: number };
-  specifications?: Record<string, unknown>;
-  dimensions?: { length?: number; width?: number; height?: number; unit?: string };
-  seoData?: { metaTitle?: string; metaDescription?: string; keywords?: string[] };
-  weight?: number | { value: number };
-  images?: unknown[];
-  reason?: string;
-  approvedBy?: string;
-  rejectedBy?: string;
-  hiddenBy?: string;
-  unhiddenBy?: string;
-  suspendedBy?: string;
-  unsuspendedBy?: string;
-  suspensionDuration?: number;
-  productIds?: string[];
-}
-
+// gRPC Response type
 interface GrpcResponse {
   success: boolean;
   message: string;
@@ -84,10 +60,14 @@ interface GrpcResponse {
  * 
  * Responsibilities:
  * - Route gRPC calls to appropriate services
- * - Handle basic error responses
  * - Delegate all business logic to services
- * - Delegate all validation to pipes/DTOs
- * - Delegate all mapping to dedicated mappers
+ * - Delegate all validation to pipes/DTOs (Pipe tự động transform & validate)
+ * - Delegate all mapping to dedicated mappers (chỉ cho response mapping)
+ * - Delegate all error handling to ExceptionFilter (APP_FILTER)
+ * 
+ * @note 
+ * - Không cần try-catch ở đây vì ExceptionFilter sẽ tự động catch và xử lý
+ * - Tất cả methods đều dùng DTO classes → Pipe tự động transform và validate
  */
 @Controller()
 export class SupplierProductController {
@@ -107,188 +87,132 @@ export class SupplierProductController {
     private readonly getSupplierProductStatsService: GetSupplierProductStatsService,
     private readonly unsuspendSupplierProductService: UnsuspendSupplierProductService,
     private readonly getSupplierProductsByIdsService: GetSupplierProductsByIdsService,
-    private readonly grpcRequestMapper: GrpcRequestMapper,
     private readonly grpcResponseMapper: GrpcResponseMapper,
   ) {}
 
   @GrpcMethod('SupplierProductService', 'CreateSupplierProduct')
-  async createSupplierProduct(data: GrpcRequest): Promise<GrpcResponse> {
-    try {
-      const request = this.grpcRequestMapper.toCreateSupplierProductRequest(data);
-      const result = await this.createSupplierProductService.execute(request);
-      return this.grpcResponseMapper.toSuccessResponse('Product created successfully', result);
-    } catch (error) {
-      return this.grpcResponseMapper.toErrorResponse(error);
-    }
+  async createSupplierProduct(data: CreateSupplierProductRequest): Promise<GrpcResponse> {
+    // Pipe tự động transform và validate data → CreateSupplierProductRequest instance
+    const result = await this.createSupplierProductService.execute(data);
+    return this.grpcResponseMapper.toSuccessResponse('Product created successfully', result);
   }
 
   @GrpcMethod('SupplierProductService', 'GetSupplierProduct')
-  async getSupplierProduct(data: GrpcRequest): Promise<GrpcResponse> {
-    try {
-      const id = this.grpcRequestMapper.extractRequiredId(data);
-      const result = await this.getSupplierProductService.execute(id);
-      return this.grpcResponseMapper.toSuccessResponse('Product retrieved successfully', result);
-    } catch (error) {
-      return this.grpcResponseMapper.toErrorResponse(error);
-    }
+  async getSupplierProduct(data: GetByIdRequest): Promise<GrpcResponse> {
+    // Pipe tự động transform và validate data → GetByIdRequest instance
+    const result = await this.getSupplierProductService.execute(data.id);
+    return this.grpcResponseMapper.toSuccessResponse('Product retrieved successfully', result.data);
   }
 
   @GrpcMethod('SupplierProductService', 'GetSupplierProducts')
-  async getSupplierProducts(data: GrpcRequest): Promise<GrpcResponse> {
-    try {
-      const { page, limit, filters } = this.grpcRequestMapper.toGetSupplierProductsRequest(data);
-      const result = await this.getSupplierProductsService.execute(page, limit, filters);
-      
-      // Include stats if supplierId provided
-      let stats;
-      if (data.supplierId) {
-        const statsResult = await this.getSupplierProductStatsService.execute(data.supplierId);
-        if (statsResult?.success) stats = statsResult.data;
-      }
-
-      return this.grpcResponseMapper.toPaginatedResponse(
-        'Products retrieved successfully',
-        result.products,
-        result.total,
-        result.page,
-        result.limit,
-        result.totalPages,
-        stats
-      );
-    } catch (error) {
-      return this.grpcResponseMapper.toErrorResponse(error);
+  async getSupplierProducts(data: GetSupplierProductsRequest): Promise<GrpcResponse> {
+    // Pipe tự động transform và validate data → GetSupplierProductsRequest instance
+    const { page = 1, limit = 10, ...filters } = data;
+    const result = await this.getSupplierProductsService.execute(page, limit, filters);
+    
+    // Include stats if supplierId provided
+    let stats;
+    if (data.supplierId) {
+      const statsResult = await this.getSupplierProductStatsService.execute(data.supplierId);
+      if (statsResult?.success) stats = statsResult.data;
     }
+
+    return this.grpcResponseMapper.toPaginatedResponse(
+      'Products retrieved successfully',
+      result.products,
+      result.total,
+      result.page,
+      result.limit,
+      result.totalPages,
+      stats
+    );
   }
 
   @GrpcMethod('SupplierProductService', 'ApproveSupplierProduct')
-  async approveSupplierProduct(data: GrpcRequest): Promise<GrpcResponse> {
-    try {
-      const { id, approvedBy } = this.grpcRequestMapper.toApproveSupplierProductRequest(data);
-      const result = await this.approveSupplierProductService.execute(id, approvedBy);
-      return this.grpcResponseMapper.toSuccessResponse('Product approved successfully', result);
-    } catch (error) {
-      return this.grpcResponseMapper.toErrorResponse(error);
-    }
+  async approveSupplierProduct(data: ApproveSupplierProductRequest): Promise<GrpcResponse> {
+    // Pipe tự động transform và validate data → ApproveSupplierProductRequest instance
+    const result = await this.approveSupplierProductService.execute(data.id, data.approvedBy);
+    return this.grpcResponseMapper.toSuccessResponse('Product approved successfully', result);
   }
 
   @GrpcMethod('SupplierProductService', 'RejectSupplierProduct')
-  async rejectSupplierProduct(data: GrpcRequest): Promise<GrpcResponse> {
-    try {
-      const { id, reason, rejectedBy } = this.grpcRequestMapper.toRejectSupplierProductRequest(data);
-      const result = await this.rejectSupplierProductService.execute(id, reason, rejectedBy);
-      return this.grpcResponseMapper.toSuccessResponse('Product rejected successfully', result);
-    } catch (error) {
-      return this.grpcResponseMapper.toErrorResponse(error);
-    }
+  async rejectSupplierProduct(data: RejectSupplierProductRequest): Promise<GrpcResponse> {
+    // Pipe tự động transform và validate data → RejectSupplierProductRequest instance
+    const result = await this.rejectSupplierProductService.execute(data.id, data.reason, data.rejectedBy);
+    return this.grpcResponseMapper.toSuccessResponse('Product rejected successfully', result);
   }
 
   @GrpcMethod('SupplierProductService', 'UpdateSupplierProduct')
-  async updateSupplierProduct(data: GrpcRequest): Promise<GrpcResponse> {
-    try {
-      const request = this.grpcRequestMapper.toUpdateSupplierProductRequest(data);
-      const result = await this.updateSupplierProductService.execute(request);
-      return this.grpcResponseMapper.toSuccessResponse('Product updated successfully', result);
-    } catch (error) {
-      return this.grpcResponseMapper.toErrorResponse(error);
-    }
+  async updateSupplierProduct(data: UpdateSupplierProductRequest): Promise<GrpcResponse> {
+    // Pipe tự động transform và validate data → UpdateSupplierProductRequest instance
+    const result = await this.updateSupplierProductService.execute(data);
+    return this.grpcResponseMapper.toSuccessResponse(result.message, result.data);
   }
 
   @GrpcMethod('SupplierProductService', 'DeleteSupplierProduct')
-  async deleteSupplierProduct(data: GrpcRequest): Promise<GrpcResponse> {
-    try {
-      const id = this.grpcRequestMapper.extractRequiredId(data);
-      const result = await this.deleteSupplierProductService.execute(id);
-      return result;
-    } catch (error) {
-      return this.grpcResponseMapper.toErrorResponse(error);
-    }
+  async deleteSupplierProduct(data: GetByIdRequest): Promise<GrpcResponse> {
+    // Pipe tự động transform và validate data → GetByIdRequest instance
+    const result = await this.deleteSupplierProductService.execute(data.id);
+    return this.grpcResponseMapper.toSuccessResponse(result.message, undefined);
   }
 
   @GrpcMethod('SupplierProductService', 'HideSupplierProduct')
-  async hideSupplierProduct(data: GrpcRequest): Promise<GrpcResponse> {
-    try {
-      const request = this.grpcRequestMapper.toHideSupplierProductRequest(data);
-      const result = await this.hideSupplierProductService.execute(request);
-      return result;
-    } catch (error) {
-      return this.grpcResponseMapper.toErrorResponse(error);
-    }
+  async hideSupplierProduct(data: HideSupplierProductRequest): Promise<GrpcResponse> {
+    // Pipe tự động transform và validate data → HideSupplierProductRequest instance
+    const result = await this.hideSupplierProductService.execute(data);
+    return this.grpcResponseMapper.toSuccessResponse(result.message, result.data);
   }
 
   @GrpcMethod('SupplierProductService', 'SuspendSupplierProduct')
-  async suspendSupplierProduct(data: GrpcRequest): Promise<GrpcResponse> {
-    try {
-      const { id, reason, suspendedBy, suspensionDuration } = this.grpcRequestMapper.toSuspendSupplierProductRequest(data);
-      const result = await this.suspendSupplierProductService.execute(id, reason, suspendedBy, suspensionDuration);
-      return this.grpcResponseMapper.toServiceResponse(result);
-    } catch (error) {
-      return this.grpcResponseMapper.toErrorResponse(error);
-    }
+  async suspendSupplierProduct(data: SuspendSupplierProductRequest): Promise<GrpcResponse> {
+    // Pipe tự động transform và validate data → SuspendSupplierProductRequest instance
+    const result = await this.suspendSupplierProductService.execute(data.id, data.reason, data.suspendedBy, data.suspensionDuration);
+    return this.grpcResponseMapper.toServiceResponse(result);
   }
 
   @GrpcMethod('SupplierProductService', 'UnsuspendSupplierProduct')
-  async unsuspendSupplierProduct(data: GrpcRequest): Promise<GrpcResponse> {
-    try {
-      const { id, reason, unsuspendedBy } = this.grpcRequestMapper.toUnsuspendSupplierProductRequest(data);
-      const result = await this.unsuspendSupplierProductService.execute(id, reason, unsuspendedBy);
-      return this.grpcResponseMapper.toServiceResponse(result);
-    } catch (error) {
-      return this.grpcResponseMapper.toErrorResponse(error);
-    }
+  async unsuspendSupplierProduct(data: UnsuspendSupplierProductRequest): Promise<GrpcResponse> {
+    // Pipe tự động transform và validate data → UnsuspendSupplierProductRequest instance
+    const result = await this.unsuspendSupplierProductService.execute(data.id, data.reason, data.unsuspendedBy);
+    return this.grpcResponseMapper.toServiceResponse(result);
   }
 
   @GrpcMethod('SupplierProductService', 'UnhideSupplierProduct')
-  async unhideSupplierProduct(data: GrpcRequest): Promise<GrpcResponse> {
-    try {
-      const request = this.grpcRequestMapper.toUnhideSupplierProductRequest(data);
-      const result = await this.unhideSupplierProductService.execute(request);
-      return result;
-    } catch (error) {
-      return this.grpcResponseMapper.toErrorResponse(error);
-    }
+  async unhideSupplierProduct(data: UnhideSupplierProductRequest): Promise<GrpcResponse> {
+    // Pipe tự động transform và validate data → UnhideSupplierProductRequest instance
+    const result = await this.unhideSupplierProductService.execute(data);
+    return this.grpcResponseMapper.toSuccessResponse(result.message, result.data);
   }
 
+  @Public()
   @GrpcMethod('SupplierProductService', 'GetSupplierProductSellerView')
-  async getSellerProduct(data: GrpcRequest): Promise<GrpcResponse> {
-    try {
-      const id = this.grpcRequestMapper.extractRequiredId(data);
-      const result = await this.getSupplierProductSellerViewService.execute(id);
-      return this.grpcResponseMapper.toServiceResponse(result);
-    } catch (error) {
-      return this.grpcResponseMapper.toErrorResponse(error);
-    }
+  async getSellerProduct(data: GetByIdRequest): Promise<GrpcResponse> {
+    // Pipe tự động transform và validate data → GetByIdRequest instance
+    const result = await this.getSupplierProductSellerViewService.execute(data.id);
+    return this.grpcResponseMapper.toServiceResponse(result);
   }
 
+  @Public()
   @GrpcMethod('SupplierProductService', 'ListSupplierProductSellerView')
-  async listSellerProducts(data: GrpcRequest): Promise<GrpcResponse> {
-    try {
-      const { page, limit, filters } = this.grpcRequestMapper.toListSupplierProductSellerViewRequest(data);
-      const result = await this.listSupplierProductSellerViewService.execute(page, limit, filters);
-      return this.grpcResponseMapper.toServicePaginatedResponse(result);
-    } catch (error) {
-      return this.grpcResponseMapper.toErrorResponse(error);
-    }
+  async listSellerProducts(data: ListSupplierProductSellerViewRequest): Promise<GrpcResponse> {
+    // Pipe tự động transform và validate data → ListSupplierProductSellerViewRequest instance
+    const { page = 1, limit = 10, ...filters } = data;
+    const result = await this.listSupplierProductSellerViewService.execute(page, limit, filters);
+    return this.grpcResponseMapper.toServicePaginatedResponse(result);
   }
 
   @GrpcMethod('SupplierProductService', 'GetSupplierProductStats')
-  async getSupplierProductStats(data: GrpcRequest): Promise<GrpcResponse> {
-    try {
-      const supplierId = this.grpcRequestMapper.extractRequiredSupplierId(data);
-      const result = await this.getSupplierProductStatsService.execute(supplierId);
-      return this.grpcResponseMapper.toServiceResponse(result);
-    } catch (error) {
-      return this.grpcResponseMapper.toErrorResponse(error);
-    }
+  async getSupplierProductStats(data: GetBySupplierIdRequest): Promise<GrpcResponse> {
+    // Pipe tự động transform và validate data → GetBySupplierIdRequest instance
+    const result = await this.getSupplierProductStatsService.execute(data.supplierId);
+    return this.grpcResponseMapper.toServiceResponse(result);
   }
 
+  @Public()
   @GrpcMethod('SupplierProductService', 'getSupplierProductsByIds')
-  async getSupplierProductsByIds(data: GrpcRequest): Promise<GrpcResponse> {
-    try {
-      const productIds = this.grpcRequestMapper.extractRequiredProductIds(data);
-      const products = await this.getSupplierProductsByIdsService.execute(productIds);
-      return this.grpcResponseMapper.toProductsResponse('Products retrieved successfully', products);
-    } catch (error) {
-      return this.grpcResponseMapper.toErrorResponse(error);
-    }
+  async getSupplierProductsByIds(data: GetSupplierProductsByIdsRequest): Promise<GrpcResponse> {
+    // Pipe tự động transform và validate data → GetSupplierProductsByIdsRequest instance
+    const products = await this.getSupplierProductsByIdsService.execute(data.productIds);
+    return this.grpcResponseMapper.toProductsResponse('Products retrieved successfully', products);
   }
 }

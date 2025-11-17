@@ -3,24 +3,13 @@ import { SupplierProductRepository } from '../repositories/supplier-product.repo
 import { ApprovalStatus } from '../enums/approval-status.enum';
 import { SupplierProductOrm } from '../entities/supplier-product.entity';
 
-interface SupplierProductStats {
-  approved: number;
-  pending: number;
-  rejected: number;
-  suspend: number;
-  totalProducts: number;
-  totalStock: number;
-  lowStockAlert: number;
-  outOfStock: number;
-}
-
 @Injectable()
 export class GetSupplierProductStatsService {
   constructor(
     private readonly supplierProductRepository: SupplierProductRepository
   ) {}
 
-  async execute(supplierId: string): Promise<{ success: boolean; message: string; data?: SupplierProductStats }> {
+  async execute(supplierId: string): Promise<{ success: boolean; message: string; data?: { approved: number; pending: number; rejected: number; suspend: number; totalProducts: number; totalStock: number; lowStockAlert: number; outOfStock: number } }> {
     const products = await this.supplierProductRepository.findBySupplierId(supplierId);
     const LOW_STOCK_THRESHOLD = 5;
     const getQuantity = (p: SupplierProductOrm): number => {

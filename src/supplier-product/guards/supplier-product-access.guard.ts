@@ -3,21 +3,15 @@ import {
   CanActivate,
   ExecutionContext,
   ForbiddenException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { SUPPLIER_PRODUCT_CONSTANTS } from '../constants/supplier-product.constants';
 
+// Metadata keys for guards (moved from decorators)
+export const PUBLIC_KEY = 'isPublic';
 export const ROLES_KEY = 'roles';
-export const Roles = (...roles: string[]) => {
-  const { SetMetadata } = require('@nestjs/common');
-  return SetMetadata(ROLES_KEY, roles);
-};
-
 export const SUPPLIER_ACCESS_KEY = 'supplierAccess';
-export const SupplierAccess = () => {
-  const { SetMetadata } = require('@nestjs/common');
-  return SetMetadata(SUPPLIER_ACCESS_KEY, true);
-};
 
 @Injectable()
 export class SupplierProductAccessGuard implements CanActivate {
@@ -36,33 +30,35 @@ export class SupplierProductAccessGuard implements CanActivate {
   }
 
   private validateRpcAccess(context: ExecutionContext): boolean {
-    const requiredRoles = this.reflector.getAllAndOverride<string[]>(ROLES_KEY, [
+    // Check if endpoint is marked as public
+    const isPublic = this.reflector.getAllAndOverride<boolean>(PUBLIC_KEY, [
       context.getHandler(),
       context.getClass(),
     ]);
 
-    const requiresSupplierAccess = this.reflector.getAllAndOverride<boolean>(
-      SUPPLIER_ACCESS_KEY,
-      [context.getHandler(), context.getClass()]
-    );
-
-    // If no specific roles or supplier access required, allow access
-    if (!requiredRoles && !requiresSupplierAccess) {
+    // If public endpoint, allow access without authentication
+    if (isPublic) {
       return true;
     }
 
     const rpcContext = context.switchToRpc();
     const data = rpcContext.getData();
 
-    // Basic validation - in a real app, you'd validate JWT tokens or API keys
-    if (requiresSupplierAccess && !data.supplierId) {
-      throw new ForbiddenException(
-        `${SUPPLIER_PRODUCT_CONSTANTS.ERRORS.UNAUTHORIZED_ACTION}: Supplier ID required`
+    // Require authentication: at least userId or supplierId must be present
+    // In a real app, you'd validate JWT tokens from metadata or headers
+    if (!data.userId && !data.supplierId) {
+      throw new UnauthorizedException(
+        'Authentication required. Please provide userId or supplierId in request.'
       );
     }
 
-    if (requiredRoles) {
-      // In a real implementation, you'd extract user roles from JWT or session
+    // Check for role-based access
+    const requiredRoles = this.reflector.getAllAndOverride<string[]>(ROLES_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+
+    if (requiredRoles && requiredRoles.length > 0) {
       const userRoles = data.userRoles || [];
       const hasRole = requiredRoles.some(role => userRoles.includes(role));
       
@@ -73,11 +69,60 @@ export class SupplierProductAccessGuard implements CanActivate {
       }
     }
 
+    // Check for supplier access requirement
+    const requiresSupplierAccess = this.reflector.getAllAndOverride<boolean>(
+      SUPPLIER_ACCESS_KEY,
+      [context.getHandler(), context.getClass()]
+    );
+
+    if (requiresSupplierAccess && !data.supplierId) {
+      throw new ForbiddenException(
+        `${SUPPLIER_PRODUCT_CONSTANTS.ERRORS.UNAUTHORIZED_ACTION}: Supplier ID required`
+      );
+    }
+
     return true;
   }
 
   private validateHttpAccess(context: ExecutionContext): boolean {
-    // HTTP access validation logic would go here
+    // Check if endpoint is marked as public
+    const isPublic = this.reflector.getAllAndOverride<boolean>(PUBLIC_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+
+    // If public endpoint, allow access without authentication
+    if (isPublic) {
+      return true;
+    }
+
+    const httpContext = context.switchToHttp();
+    const request = httpContext.getRequest();
+
+    // Require authentication: check for user in request (set by JWT strategy)
+    if (!request.user && !request.headers['x-user-id'] && !request.headers['x-supplier-id']) {
+      throw new UnauthorizedException(
+        'Authentication required. Please provide valid JWT token or user/supplier ID in headers.'
+      );
+    }
+
+    // Check for role-based access
+    const requiredRoles = this.reflector.getAllAndOverride<string[]>(ROLES_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+
+    if (requiredRoles && requiredRoles.length > 0) {
+      const userRoles = request.user?.roles || [];
+      const hasRole = requiredRoles.some(role => userRoles.includes(role));
+      
+      if (!hasRole) {
+        throw new ForbiddenException(
+          `${SUPPLIER_PRODUCT_CONSTANTS.ERRORS.UNAUTHORIZED_ACTION}: Required roles: ${requiredRoles.join(', ')}`
+        );
+      }
+    }
+
     return true;
   }
 }

@@ -11,13 +11,15 @@ import { ApprovalStatus } from '../enums/approval-status.enum';
 import { ProductType } from '../enums/product-type.enum';
 import { SupplierProductOrm } from '../entities/supplier-product.entity';
 import { SupplierProductFactoryService } from './supplier-product-factory.service';
+import { SupplierProductComputedPropertiesService } from './supplier-product-computed-properties.service';
 
 
 @Injectable()
 export class UpdateSupplierProductService {
   constructor(
     private readonly supplierProductRepository: SupplierProductRepository,
-    private readonly supplierProductFactoryService: SupplierProductFactoryService
+    private readonly supplierProductFactoryService: SupplierProductFactoryService,
+    private readonly computedPropertiesService: SupplierProductComputedPropertiesService
   ) {}
 
   async execute(request: UpdateSupplierProductRequest): Promise<{ success: boolean; message: string; data?: SupplierProductResponseDto }> {
@@ -124,7 +126,11 @@ export class UpdateSupplierProductService {
       updated.seoData = nextSeoData;
 
       const saved = await this.supplierProductRepository.updateProduct(updated);
-      return { success: true, message: 'Updated', data: SupplierProductMapper.toResponseDto(saved) };
+      
+      // Map to DTO với computed properties (mapper tự động orchestrate)
+      const dto = SupplierProductMapper.toResponseDtoWithComputed(saved, this.computedPropertiesService);
+
+      return { success: true, message: 'Updated', data: dto };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       return { success: false, message: errorMessage || 'Failed to update product' };

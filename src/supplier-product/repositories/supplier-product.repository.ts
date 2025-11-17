@@ -10,7 +10,6 @@ import { ProductType } from '../enums/product-type.enum';
 import { SupplierProductOrm } from '../entities/supplier-product.entity';
 import { ProductImageOrm } from '../entities/product-image.entity';
 import { ProductReviewOrm } from '../entities/product-review.entity';
-import { ISupplierProductRepository } from '../interfaces/supplier-product-repository.interface';
 
 /**
  * Custom Repository cho SupplierProduct
@@ -26,7 +25,7 @@ import { ISupplierProductRepository } from '../interfaces/supplier-product-repos
  * Custom Repository này mở rộng với domain logic và business queries
  */
 @Injectable()
-export class SupplierProductRepository extends Repository<SupplierProductOrm> implements ISupplierProductRepository {
+export class SupplierProductRepository extends Repository<SupplierProductOrm> {
   constructor(
     private readonly dataSource: DataSource,
     @InjectRepository(ProductImageOrm)
@@ -286,7 +285,7 @@ export class SupplierProductRepository extends Repository<SupplierProductOrm> im
       status?: ProductStatus;
       approvalStatus?: ApprovalStatus;
       supplierId?: string;
-      categoryId?: string;
+      categoryName?: string;
       type?: ProductType;
       minPrice?: number;
       maxPrice?: number;
@@ -317,8 +316,8 @@ export class SupplierProductRepository extends Repository<SupplierProductOrm> im
       if (filters.supplierId) {
         queryBuilder.andWhere('product.supplierId = :supplierId', { supplierId: filters.supplierId });
       }
-      if (filters.categoryId) {
-        queryBuilder.andWhere('product.categoryName = :categoryName', { categoryName: filters.categoryId });
+      if (filters.categoryName) {
+        queryBuilder.andWhere('product.categoryName = :categoryName', { categoryName: filters.categoryName });
       }
       if (filters.type) {
         queryBuilder.andWhere('product.type = :type', { type: filters.type });

@@ -3,23 +3,15 @@ import { SupplierProductRepository } from '../repositories/supplier-product.repo
 import { ProductStatus } from '../enums/product-status.enum';
 import { ApprovalStatus } from '../enums/approval-status.enum';
 import type { SupplierProductSellerViewDetailDto } from '../dto/supplier-product-seller-view.dto';
-import { ProductPriceResponseDto } from '../dto/product-price.dto';
+import { SupplierProductSellerViewMapper } from '../mappers/supplier-product-seller-view.mapper';
+import { SupplierProductComputedPropertiesService } from './supplier-product-computed-properties.service';
 
 @Injectable()
 export class GetSupplierProductSellerViewService {
   constructor(
-    private readonly supplierProductRepository: SupplierProductRepository
+    private readonly supplierProductRepository: SupplierProductRepository,
+    private readonly computedPropertiesService: SupplierProductComputedPropertiesService
   ) {}
-
-  private formatDate(date: Date | string | undefined): string | undefined {
-    if (!date) return undefined;
-    if (date instanceof Date) return date.toISOString();
-    try {
-      return new Date(date).toISOString();
-    } catch {
-      return undefined;
-    }
-  }
 
   async execute(id: string): Promise<{ success: boolean; message: string; data?: SupplierProductSellerViewDetailDto }> {
     const product = await this.supplierProductRepository.findById(id);
@@ -33,52 +25,13 @@ export class GetSupplierProductSellerViewService {
     
     if (!visible) return { success: false, message: 'Product not available for sellers' };
 
-    const categoryName = product.categoryName || null;
-    const listingPrice = product.price?.listingPrice || 0;
-    const retailPrice = product.price?.retailPrice || 0;
-    const price: ProductPriceResponseDto = {
-      listingPrice,
-      retailPrice,
-      currency: product.price?.currency || 'VND',
-      profitAmount: retailPrice - listingPrice
-    };
-    const quantity = product.inventory?.quantity;
-    const images = (product.images || []).map(i => ({ id: i.id, url: i.url, altText: i.altText, isPrimary: i.isPrimary, width: i.width, height: i.height }));
-    const reviews = (product.reviews || []).map(r => ({ id: r.id, rating: r.rating, title: r.title, comment: r.comment, isVerified: r.isVerified, createdAt: r.createdAt?.toISOString?.() }));
-    const count = reviews.length;
-    const avg = count > 0 ? reviews.reduce((s, r) => s + (Number(r.rating) || 0), 0) / count : 0;
+    // Map to Seller View DTO (mapper tự động orchestrate với computed properties)
+    const data = SupplierProductSellerViewMapper.toDetailDto(product, this.computedPropertiesService);
 
     return {
       success: true,
       message: 'OK',
-      data: {
-        id: product.id,
-        supplierId: product.supplierId,
-        name: product.name,
-        description: product.description,
-        shortDescription: product.shortDescription,
-        sku: product.sku,
-        price,
-        categoryName,
-        imageUrl: images.find(i => i.isPrimary)?.url || images[0]?.url || null,
-        isFeatured: product.isFeatured === true,
-        images,
-        reviews,
-        reviewSummary: { count, averageRating: avg },
-        inventory: quantity !== undefined ? { quantity } : undefined,
-        specifications: product.specifications ? {
-          specifications: product.specifications.specifications || {},
-          materials: product.specifications.materials,
-          colors: product.specifications.colors,
-          sizes: product.specifications.sizes
-        } : undefined,
-        dimensions: product.dimensions,
-        type: product.type,
-        tags: product.tags,
-        weight: product.weight,
-        createdAt: this.formatDate(product.createdAt),
-        updatedAt: this.formatDate(product.updatedAt)
-      }
+      data,
     };
   }
 }

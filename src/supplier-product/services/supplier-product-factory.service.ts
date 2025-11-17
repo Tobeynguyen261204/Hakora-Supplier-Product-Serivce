@@ -3,6 +3,10 @@ import { SupplierProductOrm } from '../entities/supplier-product.entity';
 import { ProductImageOrm } from '../entities/product-image.entity';
 import { ProductReviewOrm } from '../entities/product-review.entity';
 import { CreateSupplierProductRequest } from '../dto/create-supplier-product-request.dto';
+import { ProductPrice } from '../value-objects/product-price.vo';
+import { ProductInventory } from '../value-objects/product-inventory.vo';
+import { ProductSpecifications } from '../value-objects/product-specifications.vo';
+import { ProductType } from '../enums/product-type.enum';
 import { ProductStatus } from '../enums/product-status.enum';
 import { ApprovalStatus } from '../enums/approval-status.enum';
 
@@ -13,16 +17,33 @@ import { ApprovalStatus } from '../enums/approval-status.enum';
  * - Factory pattern
  * - Encapsulate creation logic
  * - Validate creation rules
+ * - Handle Value Object to JSONB conversion
  */
 @Injectable()
 export class SupplierProductFactoryService {
   
   /**
-   * Tạo SupplierProductOrm từ CreateSupplierProductRequest
+   * ✅ Professional: Tạo SupplierProductOrm từ Value Objects (Domain Model)
+   * Factory nhận Value Objects, handle conversion internally
    */
-  createFromRequest(
+  createFromValueObjects(
     id: string,
-    request: CreateSupplierProductRequest,
+    supplierId: string,
+    name: string,
+    description: string,
+    shortDescription: string | undefined,
+    sku: string,
+    categoryName: string,
+    price: ProductPrice,  // ✅ Value Object
+    inventory: ProductInventory,  // ✅ Value Object
+    specifications: ProductSpecifications,  // ✅ Value Object
+    type: ProductType,
+    tags: string[],
+    isActive: boolean,
+    isFeatured: boolean,
+    weight: number | undefined,
+    dimensions: CreateSupplierProductRequest['dimensions'],
+    seoData: CreateSupplierProductRequest['seoData'],
     images: ProductImageOrm[] = [],
     reviews: ProductReviewOrm[] = []
   ): SupplierProductOrm {
@@ -30,64 +51,101 @@ export class SupplierProductFactoryService {
     
     // Basic fields
     product.id = id;
-    product.supplierId = request.supplierId;
-    product.name = request.name;
-    product.description = request.description;
-    product.shortDescription = request.shortDescription;
-    product.sku = request.sku;
-    product.categoryName = request.categoryName;
+    product.supplierId = supplierId;
+    product.name = name;
+    product.description = description;
+    product.shortDescription = shortDescription;
+    product.sku = sku;
+    product.categoryName = categoryName;
     
-    // JSONB fields - convert from DTOs to plain objects
+    // ✅ Convert Value Objects to JSONB format
     product.price = {
-      listingPrice: request.price.listingPrice,
-      retailPrice: request.price.retailPrice,
-      currency: request.price.currency,
+      listingPrice: price.listingPrice,
+      retailPrice: price.retailPrice,
+      currency: price.currency,
     };
     
     product.inventory = {
-      quantity: request.inventory.quantity,
+      quantity: inventory.quantity,
     };
     
-    product.specifications = {
-      specifications: request.specifications?.specifications || {},
-      materials: request.specifications?.materials,
-      colors: request.specifications?.colors,
-      sizes: request.specifications?.sizes,
-    };
+    // ✅ Use Value Object's toJSON method
+    product.specifications = specifications.toJSON();
     
     // Enums as strings
-    product.type = request.type;
-    product.status = ProductStatus.DRAFT;  // Always start as DRAFT
-    product.approvalStatus = ApprovalStatus.PENDING;  // Always start as PENDING
+    product.type = type;
+    product.status = ProductStatus.DRAFT;  // Business rule: Always start as DRAFT
+    product.approvalStatus = ApprovalStatus.PENDING;  // Business rule: Always start as PENDING
     
     // Relations
     product.images = images;
     product.reviews = reviews;
     
     // Arrays
-    product.tags = request.tags || [];
+    product.tags = tags || [];
     
     // Booleans with defaults
-    product.isActive = request.isActive ?? true;
-    product.isFeatured = request.isFeatured ?? false;
-    product.isSuspend = false;  // Always start as not suspended
+    product.isActive = isActive ?? true;
+    product.isFeatured = isFeatured ?? false;
+    product.isSuspend = false;  // Business rule: Always start as not suspended
     
     // Optional fields
-    product.weight = request.weight;
-    product.dimensions = request.dimensions ? {
-      length: request.dimensions.length,
-      width: request.dimensions.width,
-      height: request.dimensions.height,
-      unit: request.dimensions.unit,
-    } : undefined;
-    
-    product.seoData = request.seoData ? {
-      metaTitle: request.seoData.metaTitle,
-      metaDescription: request.seoData.metaDescription,
-      keywords: request.seoData.keywords,
-    } : undefined;
+    product.weight = weight;
+    product.dimensions = dimensions;
+    product.seoData = seoData;
     
     return product;
+  }
+
+  /**
+   * Tạo SupplierProductOrm từ DTO (backward compatibility)
+   * Internally converts DTO to Value Objects, then uses createFromValueObjects
+   */
+  createFromRequest(
+    id: string,
+    request: CreateSupplierProductRequest,
+    images: ProductImageOrm[] = [],
+    reviews: ProductReviewOrm[] = []
+  ): SupplierProductOrm {
+    // Convert DTO to Value Objects first, then use createFromValueObjects
+    const price = new ProductPrice(
+      request.price.listingPrice,
+      request.price.retailPrice,
+      request.price.currency
+    );
+    
+    const inventory = new ProductInventory(request.inventory.quantity);
+    
+    const specifications = request.specifications 
+      ? new ProductSpecifications(
+          new Map(Object.entries(request.specifications.specifications || {})),
+          request.specifications.materials,
+          request.specifications.colors,
+          request.specifications.sizes
+        )
+      : new ProductSpecifications(new Map());
+
+    return this.createFromValueObjects(
+      id,
+      request.supplierId,
+      request.name,
+      request.description,
+      request.shortDescription,
+      request.sku,
+      request.categoryName,
+      price,
+      inventory,
+      specifications,
+      request.type,
+      request.tags || [],
+      request.isActive ?? true,
+      request.isFeatured ?? false,
+      request.weight,
+      request.dimensions,
+      request.seoData,
+      images,
+      reviews
+    );
   }
   
   /**

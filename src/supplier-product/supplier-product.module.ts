@@ -24,7 +24,7 @@ import { GetSupplierProductStatsService } from './services/get-supplier-product-
 import { GetSupplierProductsByIdsService } from './services/get-supplier-products-by-ids.service';
 import { SupplierProductFactoryService } from './services/supplier-product-factory.service';
 import { SupplierProductBusinessService } from './services/supplier-product-business.service';
-import { SupplierProductValidationService } from './services/supplier-product-validation.service';
+import { SupplierProductComputedPropertiesService } from './services/supplier-product-computed-properties.service';
 
 // Mappers
 import { GrpcRequestMapper } from './mappers/grpc-request.mapper';
@@ -38,10 +38,6 @@ import { SupplierProductOrm } from './entities/supplier-product.entity';
 import { ProductImageOrm } from './entities/product-image.entity';
 import { ProductReviewOrm } from './entities/product-review.entity';
 
-// Configuration
-import { SupplierProductConfigService } from './config/supplier-product.config';
-import supplierProductConfig, { validate } from './config/validation.config';
-
 // Infrastructure
 import { SupplierProductExceptionFilter } from './filters/supplier-product-exception.filter';
 import { SupplierProductLoggingInterceptor } from './interceptors/supplier-product-logging.interceptor';
@@ -49,13 +45,11 @@ import { SupplierProductTransformInterceptor } from './interceptors/supplier-pro
 import { SupplierProductAccessGuard } from './guards/supplier-product-access.guard';
 import { SupplierProductValidationPipe } from './pipes/supplier-product-validation.pipe';
 
-// Interfaces
+// Constants
 import { SUPPLIER_PRODUCT_CONSTANTS } from './constants/supplier-product.constants';
 
 @Module({
   imports: [
-    // Configuration
-    ConfigModule.forFeature(supplierProductConfig),
     
     // TypeORM
     TypeOrmModule.forFeature([
@@ -66,9 +60,6 @@ import { SUPPLIER_PRODUCT_CONSTANTS } from './constants/supplier-product.constan
   ],
   controllers: [SupplierProductController],
   providers: [
-    // Configuration
-    SupplierProductConfigService,
-    
     // Infrastructure - Global providers
     {
       provide: APP_FILTER,
@@ -92,16 +83,12 @@ import { SUPPLIER_PRODUCT_CONSTANTS } from './constants/supplier-product.constan
     },
     
     // Repository
-    {
-      provide: SUPPLIER_PRODUCT_CONSTANTS.TOKENS.SUPPLIER_PRODUCT_REPOSITORY,
-      useClass: SupplierProductRepository,
-    },
     SupplierProductRepository,
     
     // Business Services (New Architecture)
     SupplierProductFactoryService,
     SupplierProductBusinessService,
-    SupplierProductValidationService,
+    SupplierProductComputedPropertiesService,
 
     // Mappers
     GrpcRequestMapper,
@@ -125,17 +112,12 @@ import { SUPPLIER_PRODUCT_CONSTANTS } from './constants/supplier-product.constan
     GetSupplierProductsByIdsService,
   ],
   exports: [
-    // Configuration
-    SupplierProductConfigService,
-    
     // Repository (for other modules)
     SupplierProductRepository,
-    SUPPLIER_PRODUCT_CONSTANTS.TOKENS.SUPPLIER_PRODUCT_REPOSITORY,
     
     // Business Services (for other modules)
     SupplierProductFactoryService,
     SupplierProductBusinessService,
-    SupplierProductValidationService,
     
     // Use Cases (for other modules)
     CreateSupplierProductService,

@@ -1,16 +1,24 @@
 import { Injectable } from '@nestjs/common';
 import { SupplierProductRepository } from '../repositories/supplier-product.repository';
+import { SupplierProductResponseDto } from '../dto/supplier-product-response.dto';
+import { SupplierProductMapper } from '../mappers/supplier-product.mapper';
+import { SupplierProductComputedPropertiesService } from './supplier-product-computed-properties.service';
 
 @Injectable()
 export class GetSupplierProductsByIdsService {
   constructor(
     private readonly supplierProductRepository: SupplierProductRepository,
+    private readonly computedPropertiesService: SupplierProductComputedPropertiesService
   ) {}
 
-  async execute(productIds: string[]): Promise<any[]> {
+  async execute(productIds: string[]): Promise<SupplierProductResponseDto[]> {
     try {
       const products = await this.supplierProductRepository.findByIds(productIds);
-      return products;
+      
+      // Map to DTOs với computed properties (mapper tự động orchestrate)
+      return products.map(product => 
+        SupplierProductMapper.toResponseDtoWithComputed(product, this.computedPropertiesService)
+      );
     } catch (error) {
       console.error('Error fetching products by IDs:', error);
       throw error;

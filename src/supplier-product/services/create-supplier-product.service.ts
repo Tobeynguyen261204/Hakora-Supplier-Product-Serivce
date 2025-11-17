@@ -1,48 +1,40 @@
-import { Injectable, ConflictException, BadRequestException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { v4 as uuidv4 } from 'uuid';
 import { SupplierProductRepository } from '../repositories/supplier-product.repository';
 import { CreateSupplierProductRequest } from '../dto/create-supplier-product-request.dto';
 import { SupplierProductResponseDto } from '../dto/supplier-product-response.dto';
-import { SupplierProductOrm } from '../entities/supplier-product.entity';
 import { ProductPrice } from '../value-objects/product-price.vo';
 import { ProductInventory } from '../value-objects/product-inventory.vo';
 import { ProductSpecifications } from '../value-objects/product-specifications.vo';
 import { ProductImageOrm } from '../entities/product-image.entity';
-import { ProductType } from '../enums/product-type.enum';
-import { ProductStatus } from '../enums/product-status.enum';
-import { ApprovalStatus } from '../enums/approval-status.enum';
 import { SupplierProductMapper } from '../mappers/supplier-product.mapper';
-import { ICreateSupplierProductService } from '../interfaces/supplier-product-service.interface';
-import { SupplierProductAlreadyExistsException } from '../exceptions/supplier-product.exceptions';
+import { SupplierProductAlreadyExistsException, SupplierProductValidationException, SupplierProductBusinessRuleException } from '../exceptions/supplier-product.exceptions';
 import { SupplierProductFactoryService } from './supplier-product-factory.service';
-import { SupplierProductValidationService } from './supplier-product-validation.service';
+import { SupplierProductComputedPropertiesService } from './supplier-product-computed-properties.service';
 
 @Injectable()
-export class CreateSupplierProductService implements ICreateSupplierProductService {
+export class CreateSupplierProductService {
   constructor(
     private readonly supplierProductRepository: SupplierProductRepository,
     private readonly supplierProductFactoryService: SupplierProductFactoryService,
-    private readonly supplierProductValidationService: SupplierProductValidationService
+    private readonly computedPropertiesService: SupplierProductComputedPropertiesService
   ) {}
 
   async execute(request: CreateSupplierProductRequest): Promise<SupplierProductResponseDto> {
     try {
-      // 1. Validate input using validation service
-      this.supplierProductValidationService.validateCreateRequest(request);
+      // 1. Request validation đã được DTO + ValidationPipe xử lý tự động
+      // Không cần gọi validateCreateRequest() nữa vì đã duplicate với DTO validation
 
       // 2. Check if SKU already exists
       const existingProduct = await this.supplierProductRepository.findBySku(request.sku);
       if (existingProduct) {
-      throw new SupplierProductAlreadyExistsException(request.sku);
+        throw new SupplierProductAlreadyExistsException(request.sku);
       }
 
-      // 3. Category simplified: just a string name
-      const categoryName = request.categoryName;
-
-      // 4. Pre-generate IDs
+      // 3. Pre-generate IDs
       const productId = this.generateProductId();
 
-      // 5. Create value objects
+      // 4. Create value objects (domain validation)
       const price = new ProductPrice(
         request.price.listingPrice,
         request.price.retailPrice,
@@ -60,7 +52,7 @@ export class CreateSupplierProductService implements ICreateSupplierProductServi
           )
         : new ProductSpecifications(new Map());
 
-      // 6. Create images tied to the product ID
+      // 5. Create images tied to the product ID
       this.validateImages(request.images || []);
       const images = (request.images || []).map((img) =>
         ProductImageOrm.create(
@@ -77,110 +69,48 @@ export class CreateSupplierProductService implements ICreateSupplierProductServi
         )
       );
 
-      // 7. Create product using factory service - pass Value Objects directly
-      const product = new SupplierProductOrm();
-      product.id = productId;
-      product.supplierId = request.supplierId;
-      product.name = request.name;
-      product.description = request.description;
-      product.shortDescription = request.shortDescription;
-      product.sku = request.sku;
-      product.categoryName = request.categoryName;
-      
-      // ✅ Convert Value Objects to JSONB only when saving
-      product.price = {
-        listingPrice: price.listingPrice,
-        retailPrice: price.retailPrice,
-        currency: price.currency
-      };
-      
-      product.inventory = {
-        quantity: inventory.quantity
-      };
-      
-      // ✅ Use Value Object toJSON method
-      product.specifications = specifications.toJSON();
-      
-      product.type = request.type;
-      product.status = ProductStatus.DRAFT;
-      product.approvalStatus = ApprovalStatus.PENDING;
-      product.images = images;
-      product.reviews = [];
-      product.tags = request.tags || [];
-      product.isActive = request.isActive ?? true;
-      product.isFeatured = request.isFeatured ?? false;
-      product.isSuspend = false;
-      product.weight = request.weight;
-      product.dimensions = request.dimensions;
-      product.seoData = request.seoData;
-
-      // 8. Save product
-      const savedProduct = await this.supplierProductRepository.save(product);
-
-      // 9. Update image product IDs (if needed)
-      // Note: savedProduct.images should already have correct productId from repository
-      const updatedImages = savedProduct.images.map((img) =>
-        ProductImageOrm.create(
-          img.id,
-          savedProduct.id,
-          img.url,
-          img.altText,
-          img.sortOrder,
-          img.isPrimary,
-          img.width,
-          img.height,
-          img.fileSize,
-          img.mimeType
-        )
+      // ✅ 6. Create product using factory service - clean and professional
+      // Factory nhận Value Objects trực tiếp và handle conversion internally
+      const product = this.supplierProductFactoryService.createFromValueObjects(
+        productId,
+        request.supplierId,
+        request.name,
+        request.description,
+        request.shortDescription,
+        request.sku,
+        request.categoryName,
+        price,  // ✅ Value Object
+        inventory,  // ✅ Value Object
+        specifications,  // ✅ Value Object
+        request.type,
+        request.tags || [],
+        request.isActive ?? true,
+        request.isFeatured ?? false,
+        request.weight,
+        request.dimensions,
+        request.seoData,
+        images,
+        [] // reviews - empty for new product
       );
 
-      // Use the saved product directly - no need to recreate
-      const finalProduct = savedProduct;
+      // 7. Save product
+      const savedProduct = await this.supplierProductRepository.save(product);
 
-      const updatedProduct = await this.supplierProductRepository.updateProduct(finalProduct);
-
-      // 10. Return response
-      return SupplierProductMapper.toResponseDto(updatedProduct);
+      // 8. Map to DTO với computed properties (mapper tự động orchestrate)
+      return SupplierProductMapper.toResponseDtoWithComputed(savedProduct, this.computedPropertiesService);
     } catch (error) {
-      // Re-throw NestJS exceptions
-      if (error instanceof ConflictException || error instanceof BadRequestException) {
+      // Re-throw RpcException
+      if (error instanceof SupplierProductAlreadyExistsException || 
+          error instanceof SupplierProductValidationException ||
+          error instanceof SupplierProductBusinessRuleException) {
         throw error;
       }
       // Wrap other errors
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-      throw new BadRequestException(`Failed to create supplier product: ${errorMessage}`);
+      throw new SupplierProductValidationException(`Failed to create supplier product: ${errorMessage}`);
     }
   }
 
-  private async validateRequest(request: CreateSupplierProductRequest): Promise<void> {
-    if (!request.name || request.name.trim().length === 0) {
-      throw new BadRequestException('Product name is required');
-    }
-    if (!request.description || request.description.trim().length === 0) {
-      throw new BadRequestException('Product description is required');
-    }
-    if (!request.sku || request.sku.trim().length === 0) {
-      throw new BadRequestException('Product SKU is required');
-    }
-    if (!request.supplierId || request.supplierId.trim().length === 0) {
-      throw new BadRequestException('Supplier ID is required');
-    }
-    if (!request.categoryName || request.categoryName.trim().length === 0) {
-      throw new BadRequestException('Category name is required');
-    }
-    if (request.price.listingPrice < 0) {
-      throw new BadRequestException('Listing price cannot be negative');
-    }
-    if (request.price.retailPrice < 0) {
-      throw new BadRequestException('Retail price cannot be negative');
-    }
-    if (request.price.retailPrice < request.price.listingPrice) {
-      throw new BadRequestException('Retail price cannot be less than listing price');
-    }
-    if (request.inventory.quantity < 0) {
-      throw new BadRequestException('Inventory quantity cannot be negative');
-    }
-  }
 
   private generateProductId(): string {
     return uuidv4();
@@ -201,20 +131,20 @@ export class CreateSupplierProductService implements ICreateSupplierProductServi
     // Ensure at least one primary image if images are provided
     const hasPrimaryImage = images.some((img) => img.isPrimary === true);
     if (!hasPrimaryImage) {
-      throw new BadRequestException('At least one image must be marked as primary');
+      throw new SupplierProductValidationException('At least one image must be marked as primary');
     }
 
     // Validate URLs
     for (const img of images) {
       if (!img.url || img.url.trim().length === 0) {
-        throw new BadRequestException('Image URL is required');
+        throw new SupplierProductValidationException('Image URL is required');
       }
 
       // Basic URL validation
       try {
         new URL(img.url);
       } catch {
-        throw new BadRequestException(`Invalid image URL: ${img.url}`);
+        throw new SupplierProductValidationException(`Invalid image URL: ${img.url}`);
       }
     }
   }

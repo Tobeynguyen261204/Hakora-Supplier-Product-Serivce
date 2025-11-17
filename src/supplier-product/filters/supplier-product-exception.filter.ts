@@ -2,111 +2,65 @@ import {
   ExceptionFilter,
   Catch,
   ArgumentsHost,
-  HttpException,
-  HttpStatus,
   Logger,
 } from '@nestjs/common';
 import { RpcException } from '@nestjs/microservices';
 import { Observable, throwError } from 'rxjs';
 import { SUPPLIER_PRODUCT_CONSTANTS } from '../constants/supplier-product.constants';
 
+/**
+ * gRPC Exception Filter
+ * Xử lý tất cả exceptions và convert sang gRPC error format
+ */
 @Catch()
 export class SupplierProductExceptionFilter implements ExceptionFilter {
   private readonly logger = new Logger(SupplierProductExceptionFilter.name);
 
   catch(exception: any, host: ArgumentsHost): Observable<any> {
-    const contextType = host.getType();
-
     // Log the exception
     this.logger.error(
-      `Exception caught: ${exception.message}`,
+      `Exception caught: ${exception.message || 'Unknown error'}`,
       exception.stack,
       'SupplierProductExceptionFilter'
     );
 
-    if (contextType === 'rpc') {
-      return this.handleRpcException(exception);
-    }
-
-    // Handle HTTP exceptions (if needed in the future)
-    return this.handleHttpException(exception);
+    // Xử lý exception cho gRPC
+    return this.handleGrpcException(exception);
   }
 
-  private handleRpcException(exception: any): Observable<any> {
-    let status = 'INTERNAL';
+  private handleGrpcException(exception: any): Observable<any> {
+    let code = 13; // INTERNAL (default)
     let message: string = SUPPLIER_PRODUCT_CONSTANTS.ERRORS.INTERNAL_ERROR;
     let details: any = {};
 
-    if (exception instanceof HttpException) {
-      const response = exception.getResponse();
-      status = this.mapHttpStatusToGrpcStatus(exception.getStatus());
-      
-      if (typeof response === 'string') {
-        message = response;
-      } else if (typeof response === 'object' && response !== null) {
-        message = (response as any).message || SUPPLIER_PRODUCT_CONSTANTS.ERRORS.INTERNAL_ERROR;
-        details = response;
-      }
-    } else if (exception instanceof RpcException) {
+    if (exception instanceof RpcException) {
+      // Nếu đã là RpcException, lấy thông tin từ đó
       const error = exception.getError();
+      
       if (typeof error === 'string') {
         message = error;
       } else if (typeof error === 'object' && error !== null) {
-        message = (error as any).message || SUPPLIER_PRODUCT_CONSTANTS.ERRORS.INTERNAL_ERROR;
-        status = (error as any).code || status;
-        details = error;
+        code = (error as any).code || code;
+        message = (error as any).message || message;
+        details = (error as any).details || {};
       }
     } else if (exception instanceof Error) {
+      // Generic Error
       message = exception.message;
+      details = {
+        name: exception.name,
+        stack: exception.stack,
+      };
+    } else {
+      // Unknown error
+      message = String(exception) || SUPPLIER_PRODUCT_CONSTANTS.ERRORS.INTERNAL_ERROR;
     }
 
     // Return gRPC-compatible error
     return throwError(() => ({
-      code: status,
+      code,
       message,
       details,
     }));
-  }
-
-  private handleHttpException(exception: any): Observable<any> {
-    let status = HttpStatus.INTERNAL_SERVER_ERROR;
-    let message: string = SUPPLIER_PRODUCT_CONSTANTS.ERRORS.INTERNAL_ERROR;
-    let details: any = {};
-
-    if (exception instanceof HttpException) {
-      status = exception.getStatus();
-      const response = exception.getResponse();
-      
-      if (typeof response === 'string') {
-        message = response;
-      } else if (typeof response === 'object' && response !== null) {
-        message = (response as any).message || SUPPLIER_PRODUCT_CONSTANTS.ERRORS.INTERNAL_ERROR;
-        details = response;
-      }
-    } else if (exception instanceof Error) {
-      message = exception.message;
-    }
-
-    return throwError(() => ({
-      statusCode: status,
-      message,
-      details,
-      timestamp: new Date().toISOString(),
-    }));
-  }
-
-  private mapHttpStatusToGrpcStatus(httpStatus: number): string {
-    const statusMap: Record<number, string> = {
-      [HttpStatus.BAD_REQUEST]: 'INVALID_ARGUMENT',
-      [HttpStatus.UNAUTHORIZED]: 'UNAUTHENTICATED',
-      [HttpStatus.FORBIDDEN]: 'PERMISSION_DENIED',
-      [HttpStatus.NOT_FOUND]: 'NOT_FOUND',
-      [HttpStatus.CONFLICT]: 'ALREADY_EXISTS',
-      [HttpStatus.UNPROCESSABLE_ENTITY]: 'FAILED_PRECONDITION',
-      [HttpStatus.INTERNAL_SERVER_ERROR]: 'INTERNAL',
-      [HttpStatus.SERVICE_UNAVAILABLE]: 'UNAVAILABLE',
-    };
-
-    return statusMap[httpStatus] || 'INTERNAL';
   }
 }
