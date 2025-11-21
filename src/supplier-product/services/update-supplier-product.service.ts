@@ -32,6 +32,11 @@ export class UpdateSupplierProductService {
         return { success: false, message: 'Product not found' };
       }
 
+      // ✅ Validate supplier scope: only supplier can update their own products
+      if (request.supplierId && existing.supplierId !== request.supplierId) {
+        return { success: false, message: 'You do not have permission to update this product' };
+      }
+
       // ✅ Create Value Object and use business methods for updates
       const currentPrice = new ProductPrice(
         existing.price.listingPrice,

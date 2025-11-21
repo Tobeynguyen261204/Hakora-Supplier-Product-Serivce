@@ -155,22 +155,23 @@ message CreateSupplierProductRequest {
 
 message UpdateSupplierProductRequest {
   string id = 1;
-  string name = 2;
-  string description = 3;
-  string shortDescription = 4;
-  string sku = 5;
-  string categoryName = 6;
-  ProductPrice price = 7;
-  ProductInventory inventory = 8;
-  ProductSpecifications specifications = 9;
-  ProductType type = 10;
-  repeated string tags = 11;
-  bool isActive = 12;
-  bool isFeatured = 13;
-  double weight = 14;
-  ProductDimensions dimensions = 15;
-  ProductSEO seoData = 16;
-  repeated ProductImage images = 17;
+  string supplierId = 2;  // For scope validation: only supplier can update their own products
+  string name = 3;
+  string description = 4;
+  string shortDescription = 5;
+  string sku = 6;
+  string categoryName = 7;
+  ProductPrice price = 8;
+  ProductInventory inventory = 9;
+  ProductSpecifications specifications = 10;
+  ProductType type = 11;
+  repeated string tags = 12;
+  bool isActive = 13;
+  bool isFeatured = 14;
+  double weight = 15;
+  ProductDimensions dimensions = 16;
+  ProductSEO seoData = 17;
+  repeated ProductImage images = 18;
 }
 
 message GetSupplierProductRequest {
@@ -207,8 +208,9 @@ message RejectSupplierProductRequest {
 
 message HideSupplierProductRequest {
   string id = 1;
-  string reason = 2;
-  string hiddenBy = 3;
+  string supplierId = 2;  // For scope validation
+  string reason = 3;
+  string hiddenBy = 4;
 }
 
 message SuspendSupplierProductRequest {
@@ -221,7 +223,8 @@ message SuspendSupplierProductRequest {
 
 message UnhideSupplierProductRequest {
   string id = 1;
-  string unhiddenBy = 2;
+  string supplierId = 2;  // For scope validation
+  string unhiddenBy = 3;
 }
 
 // =============== Admin Suspend Management ===============
@@ -360,6 +363,7 @@ message ProductExistsResponse {
 }
 // Service definition
 service SupplierProductService {
+  // Public/Admin APIs
   rpc CreateSupplierProduct(CreateSupplierProductRequest) returns (ProductResponse);
   rpc UpdateSupplierProduct(UpdateSupplierProductRequest) returns (ProductResponse);
   rpc GetSupplierProduct(GetSupplierProductRequest) returns (ProductResponse);
@@ -379,7 +383,21 @@ service SupplierProductService {
   rpc GetSupplierProductStats(GetSupplierProductStatsRequest) returns (SupplierProductStatsResponse);
   // Search support
   rpc GetSupplierProductsByIds(GetSupplierProductsByIdsRequest) returns (ProductListResponse);
+  
+  // === Supplier-scoped APIs (require supplierId from header) ===
+  // Supplier can only manage their own products
+  rpc SupplierCreateProduct(CreateSupplierProductRequest) returns (ProductResponse);
+  rpc SupplierUpdateProduct(UpdateSupplierProductRequest) returns (ProductResponse);
+  rpc SupplierGetProduct(GetSupplierProductRequest) returns (ProductResponse);
+  rpc SupplierListProducts(GetSupplierProductsRequest) returns (ProductListResponse);
+  rpc SupplierDeleteProduct(GetSupplierProductRequest) returns (EmptyResponse);
+  rpc SupplierHideProduct(HideSupplierProductRequest) returns (ProductResponse);
+  rpc SupplierUnhideProduct(UnhideSupplierProductRequest) returns (ProductResponse);
+  rpc SupplierGetStats(GetSupplierProductStatsRequest) returns (SupplierProductStatsResponse);
 }
+
+
+
 
 
 

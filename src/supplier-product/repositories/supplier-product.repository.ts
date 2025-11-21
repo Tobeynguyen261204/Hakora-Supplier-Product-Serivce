@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, Repository, SelectQueryBuilder, SaveOptions } from 'typeorm';
+import { DataSource, Repository, SelectQueryBuilder, SaveOptions, FindOptionsWhere } from 'typeorm';
 import { ProductPrice } from '../value-objects/product-price.vo';
 import { ProductInventory } from '../value-objects/product-inventory.vo';
 import { ProductSpecifications } from '../value-objects/product-specifications.vo';
@@ -45,6 +45,11 @@ export class SupplierProductRepository extends Repository<SupplierProductOrm> {
   // ============================================================================
 
   /**
+   * Relations mặc định cho các query
+   */
+  private readonly DEFAULT_RELATIONS = ['images', 'reviews'] as const;
+
+  /**
    * Tạo query builder với relations mặc định (images, reviews)
    * Helper method để tránh lặp lại code
    * Sử dụng this.createQueryBuilder() vì đã extend Repository
@@ -53,6 +58,30 @@ export class SupplierProductRepository extends Repository<SupplierProductOrm> {
     return this.createQueryBuilder(alias)
       .leftJoinAndSelect(`${alias}.images`, 'images')
       .leftJoinAndSelect(`${alias}.reviews`, 'reviews');
+  }
+
+  /**
+   * Helper method chung cho find operations với relations
+   * Tránh lặp lại code cho các query đơn giản
+   */
+  private async findWithRelations(
+    where: FindOptionsWhere<SupplierProductOrm>,
+    relations: string[] = [...this.DEFAULT_RELATIONS]
+  ): Promise<SupplierProductOrm[]> {
+    const products = await this.find({ where, relations });
+    return products.map(product => this.toDomain(product));
+  }
+
+  /**
+   * Helper method chung cho findOne operations với relations
+   */
+  private async findOneWithRelations(
+    where: FindOptionsWhere<SupplierProductOrm>,
+    relations: string[] = [...this.DEFAULT_RELATIONS]
+  ): Promise<SupplierProductOrm | null> {
+    const product = await this.findOne({ where, relations });
+    if (!product) return null;
+    return this.toDomain(product);
   }
 
   // ============================================================================
@@ -79,22 +108,20 @@ export class SupplierProductRepository extends Repository<SupplierProductOrm> {
     }
   }
 
+  /**
+   * Tìm product theo ID với relations
+   * Custom method vì đây là query phổ biến nhất
+   */
   async findById(id: string): Promise<SupplierProductOrm | null> {
-    const productOrm = await this.findOne({
-      where: { id },
-      relations: ['images', 'reviews']
-    });
-    if (!productOrm) return null;
-    return this.toDomain(productOrm);
+    return this.findOneWithRelations({ id });
   }
 
+  /**
+   * Tìm product theo SKU với relations
+   * Custom method vì SKU là unique identifier quan trọng
+   */
   async findBySku(sku: string): Promise<SupplierProductOrm | null> {
-    const productOrm = await this.findOne({
-      where: { sku },
-      relations: ['images', 'reviews']
-    });
-    if (!productOrm) return null;
-    return this.toDomain(productOrm);
+    return this.findOneWithRelations({ sku });
   }
 
   async updateProduct(product: SupplierProductOrm): Promise<SupplierProductOrm> {
@@ -107,60 +134,60 @@ export class SupplierProductRepository extends Repository<SupplierProductOrm> {
     await super.delete({ id });
   }
 
+  /**
+   * Tìm products theo supplierId
+   * Giữ custom method vì đây là business query phổ biến
+   */
   async findBySupplierId(supplierId: string): Promise<SupplierProductOrm[]> {
-    const products = await this.find({
-      where: { supplierId },
-      relations: ['images', 'reviews']
-    });
-    return products.map(product => this.toDomain(product));
+    return this.findWithRelations({ supplierId });
   }
 
+  /**
+   * Tìm products theo supplierId và status
+   * Custom method vì có business logic (filter theo status)
+   */
   async findBySupplierIdAndStatus(supplierId: string, status: ProductStatus): Promise<SupplierProductOrm[]> {
-    const products = await this.find({
-      where: { supplierId, status },
-      relations: ['images', 'reviews']
-    });
-    return products.map(product => this.toDomain(product));
+    return this.findWithRelations({ supplierId, status });
   }
 
+  /**
+   * Tìm products theo supplierId và approvalStatus
+   * Custom method vì có business logic (filter theo approval)
+   */
   async findBySupplierIdAndApprovalStatus(supplierId: string, approvalStatus: ApprovalStatus): Promise<SupplierProductOrm[]> {
-    const products = await this.find({
-      where: { supplierId, approvalStatus },
-      relations: ['images', 'reviews']
-    });
-    return products.map(product => this.toDomain(product));
+    return this.findWithRelations({ supplierId, approvalStatus });
   }
 
+  /**
+   * Tìm products theo categoryId
+   * Giữ custom method vì đây là business query phổ biến
+   */
   async findByCategoryId(categoryId: string): Promise<SupplierProductOrm[]> {
-    const products = await this.find({
-      where: { categoryName: categoryId },
-      relations: ['images', 'reviews']
-    });
-    return products.map(product => this.toDomain(product));
+    return this.findWithRelations({ categoryName: categoryId });
   }
 
+  /**
+   * Tìm products theo categoryId và status
+   * Custom method vì có business logic (filter theo status)
+   */
   async findByCategoryIdAndStatus(categoryId: string, status: ProductStatus): Promise<SupplierProductOrm[]> {
-    const products = await this.find({
-      where: { categoryName: categoryId, status },
-      relations: ['images', 'reviews']
-    });
-    return products.map(product => this.toDomain(product));
+    return this.findWithRelations({ categoryName: categoryId, status });
   }
 
+  /**
+   * Tìm products theo status
+   * Giữ custom method vì đây là business query phổ biến
+   */
   async findByStatus(status: ProductStatus): Promise<SupplierProductOrm[]> {
-    const products = await this.find({
-      where: { status },
-      relations: ['images', 'reviews']
-    });
-    return products.map(product => this.toDomain(product));
+    return this.findWithRelations({ status });
   }
 
+  /**
+   * Tìm products theo approvalStatus
+   * Giữ custom method vì đây là business query phổ biến
+   */
   async findByApprovalStatus(approvalStatus: ApprovalStatus): Promise<SupplierProductOrm[]> {
-    const products = await this.find({
-      where: { approvalStatus },
-      relations: ['images', 'reviews']
-    });
-    return products.map(product => this.toDomain(product));
+    return this.findWithRelations({ approvalStatus });
   }
 
   async findPendingApproval(): Promise<SupplierProductOrm[]> {
@@ -175,28 +202,39 @@ export class SupplierProductRepository extends Repository<SupplierProductOrm> {
     return this.findByApprovalStatus(ApprovalStatus.REJECTED);
   }
 
+  /**
+   * Tìm products đang active (published và isActive = true)
+   * Custom method vì có business logic phức tạp (kết hợp 2 điều kiện)
+   */
   async findActive(): Promise<SupplierProductOrm[]> {
-    const products = await this.find({
-      where: { status: ProductStatus.PUBLISHED, isActive: true },
-      relations: ['images', 'reviews']
+    return this.findWithRelations({ 
+      status: ProductStatus.PUBLISHED, 
+      isActive: true 
     });
-    return products.map(product => this.toDomain(product));
   }
 
+  /**
+   * Tìm products active theo supplierId
+   * Custom method vì có business logic (active + supplier filter)
+   */
   async findActiveBySupplierId(supplierId: string): Promise<SupplierProductOrm[]> {
-    const products = await this.find({
-      where: { supplierId, status: ProductStatus.PUBLISHED, isActive: true },
-      relations: ['images', 'reviews']
+    return this.findWithRelations({ 
+      supplierId, 
+      status: ProductStatus.PUBLISHED, 
+      isActive: true 
     });
-    return products.map(product => this.toDomain(product));
   }
 
+  /**
+   * Tìm products active theo categoryId
+   * Custom method vì có business logic (active + category filter)
+   */
   async findActiveByCategoryId(categoryId: string): Promise<SupplierProductOrm[]> {
-    const products = await this.find({
-      where: { categoryName: categoryId, status: ProductStatus.PUBLISHED, isActive: true },
-      relations: ['images', 'reviews']
+    return this.findWithRelations({ 
+      categoryName: categoryId, 
+      status: ProductStatus.PUBLISHED, 
+      isActive: true 
     });
-    return products.map(product => this.toDomain(product));
   }
 
   // ============================================================================
@@ -239,28 +277,28 @@ export class SupplierProductRepository extends Repository<SupplierProductOrm> {
     return products.map(product => this.toDomain(product));
   }
 
+  /**
+   * Tìm products theo type
+   * Giữ custom method vì đây là business query phổ biến
+   */
   async findByType(type: ProductType): Promise<SupplierProductOrm[]> {
-    const products = await this.find({
-      where: { type },
-      relations: ['images', 'reviews']
-    });
-    return products.map(product => this.toDomain(product));
+    return this.findWithRelations({ type });
   }
 
+  /**
+   * Tìm products featured
+   * Custom method vì có business logic (featured products)
+   */
   async findFeatured(): Promise<SupplierProductOrm[]> {
-    const products = await this.find({
-      where: { isFeatured: true },
-      relations: ['images', 'reviews']
-    });
-    return products.map(product => this.toDomain(product));
+    return this.findWithRelations({ isFeatured: true });
   }
 
+  /**
+   * Tìm products featured theo supplierId
+   * Custom method vì có business logic (featured + supplier filter)
+   */
   async findFeaturedBySupplierId(supplierId: string): Promise<SupplierProductOrm[]> {
-    const products = await this.find({
-      where: { supplierId, isFeatured: true },
-      relations: ['images', 'reviews']
-    });
-    return products.map(product => this.toDomain(product));
+    return this.findWithRelations({ supplierId, isFeatured: true });
   }
 
   async findLowStock(): Promise<SupplierProductOrm[]> {

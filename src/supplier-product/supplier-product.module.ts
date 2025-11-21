@@ -42,6 +42,7 @@ import { ProductReviewOrm } from './entities/product-review.entity';
 import { SupplierProductExceptionFilter } from './filters/supplier-product-exception.filter';
 import { SupplierProductLoggingInterceptor } from './interceptors/supplier-product-logging.interceptor';
 import { SupplierProductTransformInterceptor } from './interceptors/supplier-product-transform.interceptor';
+import { SupplierContextInterceptor } from './interceptors/supplier-context.interceptor';
 import { SupplierProductAccessGuard } from './guards/supplier-product-access.guard';
 import { SupplierProductValidationPipe } from './pipes/supplier-product-validation.pipe';
 
@@ -64,6 +65,10 @@ import { SUPPLIER_PRODUCT_CONSTANTS } from './constants/supplier-product.constan
     {
       provide: APP_FILTER,
       useClass: SupplierProductExceptionFilter,
+    },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: SupplierContextInterceptor, // Chạy đầu tiên để inject supplierId từ headers
     },
     {
       provide: APP_INTERCEPTOR,

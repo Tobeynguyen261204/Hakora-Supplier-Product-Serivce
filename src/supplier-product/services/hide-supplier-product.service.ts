@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { SupplierProductRepository } from '../repositories/supplier-product.repository';
 import { ProductStatus } from '../enums/product-status.enum';
 import { SupplierProductBusinessService } from './supplier-product-business.service';
-import { SupplierProductNotFoundException, SupplierProductBusinessRuleException, SupplierProductValidationException } from '../exceptions/supplier-product.exceptions';
+import { SupplierProductNotFoundException, SupplierProductBusinessRuleException, SupplierProductValidationException, SupplierProductUnauthorizedException } from '../exceptions/supplier-product.exceptions';
 import { HideSupplierProductRequest } from '../dto/common-request.dto';
 
 @Injectable()
@@ -13,7 +13,7 @@ export class HideSupplierProductService {
   ) {}
 
   async execute(request: HideSupplierProductRequest): Promise<{ success: boolean; message: string; data?: any }> {
-    const { id, reason, hiddenBy } = request;
+    const { id, supplierId, reason, hiddenBy } = request;
 
     if (!id) {
       throw new SupplierProductValidationException('Product ID is required');
@@ -31,6 +31,11 @@ export class HideSupplierProductService {
     const product = await this.supplierProductRepository.findById(id);
     if (!product) {
       throw new SupplierProductNotFoundException(id);
+    }
+
+    // ✅ Validate supplier scope: only supplier can hide their own products
+    if (supplierId && product.supplierId !== supplierId) {
+      throw new SupplierProductUnauthorizedException('hide this product');
     }
 
     // Check if product can be hidden
