@@ -33,15 +33,22 @@ export class GetSupplierProductsService {
   async execute(
     page: number = 1,
     limit: number = 10,
-    filters: GetSupplierProductsFilters = {}
+    filters: GetSupplierProductsFilters = {},
+    supplierId?: string
   ): Promise<SupplierProductListResponseDto> {
     try {
       // 1. Validate pagination parameters
       if (page < 1) page = 1;
       if (limit < 1 || limit > 100) limit = 10;
 
-      // 2. Get products with pagination
-      const result = await this.supplierProductRepository.findWithPagination(page, limit, filters);
+      // 2. Apply supplier scope if supplierId provided (from context takes precedence)
+      // This ensures suppliers can only see their own products
+      const scopedFilters = supplierId 
+        ? { ...filters, supplierId } // Override any supplierId in filters with context supplierId
+        : filters;
+
+      // 3. Get products with pagination
+      const result = await this.supplierProductRepository.findWithPagination(page, limit, scopedFilters);
 
       // 3. Map to response DTOs với computed properties (mapper tự động orchestrate)
       const productDtos = result.products.map(product => 

@@ -3,7 +3,7 @@ import { SupplierProductRepository } from '../repositories/supplier-product.repo
 import { ProductStatus } from '../enums/product-status.enum';
 import { SupplierProductOrm } from '../entities/supplier-product.entity';
 import { SupplierProductBusinessService } from './supplier-product-business.service';
-import { SupplierProductNotFoundException, SupplierProductBusinessRuleException, SupplierProductValidationException } from '../exceptions/supplier-product.exceptions';
+import { SupplierProductNotFoundException, SupplierProductBusinessRuleException, SupplierProductValidationException, SupplierProductUnauthorizedException } from '../exceptions/supplier-product.exceptions';
 import { UnhideSupplierProductRequest } from '../dto/common-request.dto';
 
 @Injectable()
@@ -14,7 +14,7 @@ export class UnhideSupplierProductService {
   ) {}
 
   async execute(request: UnhideSupplierProductRequest): Promise<{ success: boolean; message: string; data?: any }> {
-    const { id, unhiddenBy } = request;
+    const { id, supplierId, unhiddenBy } = request;
 
     if (!id) {
       throw new SupplierProductValidationException('Product ID is required');
@@ -26,6 +26,11 @@ export class UnhideSupplierProductService {
     const product = await this.supplierProductRepository.findById(id);
     if (!product) {
       throw new SupplierProductNotFoundException(id);
+    }
+
+    // ✅ Validate supplier scope: only supplier can unhide their own products
+    if (supplierId && product.supplierId !== supplierId) {
+      throw new SupplierProductUnauthorizedException('unhide this product');
     }
 
     if (product.isActive) {

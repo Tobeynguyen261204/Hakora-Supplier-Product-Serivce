@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { SupplierProductRepository } from '../repositories/supplier-product.repository';
 import { SupplierProductOrm } from '../entities/supplier-product.entity';
 import { SupplierProductBusinessService } from './supplier-product-business.service';
+import { SupplierProductUnauthorizedException } from '../exceptions/supplier-product.exceptions';
 
 @Injectable()
 export class UnsuspendSupplierProductService {
@@ -10,10 +11,15 @@ export class UnsuspendSupplierProductService {
     private readonly supplierProductBusinessService: SupplierProductBusinessService
   ) {}
 
-  async execute(id: string, reason: string, unsuspendedBy: string): Promise<{ success: boolean; message: string; data?: { id: string; isSuspend: boolean; reason: string; unsuspendedBy: string; updatedAt: Date } }> {
+  async execute(id: string, reason: string, unsuspendedBy: string, supplierId?: string): Promise<{ success: boolean; message: string; data?: { id: string; isSuspend: boolean; reason: string; unsuspendedBy: string; updatedAt: Date } }> {
     const product = await this.supplierProductRepository.findById(id);
     if (!product) {
       return { success: false, message: 'Product not found' };
+    }
+
+    // ✅ Validate supplier scope: only supplier can unsuspend their own products
+    if (supplierId && product.supplierId !== supplierId) {
+      throw new SupplierProductUnauthorizedException('unsuspend this product');
     }
 
     if (!product.isSuspend) {

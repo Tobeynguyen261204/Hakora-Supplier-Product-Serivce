@@ -11,12 +11,17 @@ export class GetSupplierProductsByIdsService {
     private readonly computedPropertiesService: SupplierProductComputedPropertiesService
   ) {}
 
-  async execute(productIds: string[]): Promise<SupplierProductResponseDto[]> {
+  async execute(productIds: string[], supplierId?: string): Promise<SupplierProductResponseDto[]> {
     try {
       const products = await this.supplierProductRepository.findByIds(productIds);
       
+      // ✅ Filter by supplierId if provided (supplier scope)
+      const filteredProducts = supplierId 
+        ? products.filter(product => product.supplierId === supplierId)
+        : products;
+      
       // Map to DTOs với computed properties (mapper tự động orchestrate)
-      return products.map(product => 
+      return filteredProducts.map(product => 
         SupplierProductMapper.toResponseDtoWithComputed(product, this.computedPropertiesService)
       );
     } catch (error) {

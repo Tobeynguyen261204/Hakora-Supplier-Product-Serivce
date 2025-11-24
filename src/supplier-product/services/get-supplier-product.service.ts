@@ -4,7 +4,7 @@ import { SupplierProductResponseDto } from '../dto/supplier-product-response.dto
 import { SupplierProductMapper } from '../mappers/supplier-product.mapper';
 import { SUPPLIER_PRODUCT_CONSTANTS } from '../constants/supplier-product.constants';
 import { SupplierProductComputedPropertiesService } from './supplier-product-computed-properties.service';
-import { SupplierProductNotFoundException } from '../exceptions/supplier-product.exceptions';
+import { SupplierProductNotFoundException, SupplierProductUnauthorizedException } from '../exceptions/supplier-product.exceptions';
 
 @Injectable()
 export class GetSupplierProductService {
@@ -13,11 +13,17 @@ export class GetSupplierProductService {
     private readonly computedPropertiesService: SupplierProductComputedPropertiesService
   ) {}
 
-  async execute(id: string): Promise<{ success: boolean; message: string; data?: SupplierProductResponseDto }> {
+  async execute(id: string, supplierId?: string): Promise<{ success: boolean; message: string; data?: SupplierProductResponseDto }> {
     const product = await this.supplierProductRepository.findById(id);
     if (!product) {
       throw new SupplierProductNotFoundException(id);
     }
+
+    // ✅ Validate supplier scope: only supplier can access their own products
+    if (supplierId && product.supplierId !== supplierId) {
+      throw new SupplierProductUnauthorizedException('access this product');
+    }
+
     // Map to DTO với computed properties (mapper tự động orchestrate)
     const dto = SupplierProductMapper.toResponseDtoWithComputed(product, this.computedPropertiesService);
     // Add frontend-friendly alias fields without breaking existing contract

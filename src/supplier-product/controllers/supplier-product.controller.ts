@@ -1,4 +1,4 @@
-import { Controller } from '@nestjs/common';
+import { Controller, UnauthorizedException } from '@nestjs/common';
 import { GrpcMethod } from '@nestjs/microservices';
 import { CreateSupplierProductService } from '../services/create-supplier-product.service';
 import { GetSupplierProductsService } from '../services/get-supplier-products.service';
@@ -19,7 +19,8 @@ import { GrpcResponseMapper } from '../mappers/grpc-response.mapper';
 import { CreateSupplierProductRequest } from '../dto/create-supplier-product-request.dto';
 import { UpdateSupplierProductRequest } from '../dto/update-supplier-product-request.dto';
 import {
-  GetByIdRequest,
+  GetSupplierProductRequest,
+  DeleteSupplierProductRequest,
   GetBySupplierIdRequest,
   GetSupplierProductsRequest,
   ApproveSupplierProductRequest,
@@ -68,6 +69,7 @@ interface GrpcResponse {
  * @note 
  * - Không cần try-catch ở đây vì ExceptionFilter sẽ tự động catch và xử lý
  * - Tất cả methods đều dùng DTO classes → Pipe tự động transform và validate
+ * - Chỉ một số endpoint cụ thể được đánh dấu @Public(), còn lại cần authentication
  */
 @Controller()
 export class SupplierProductController {
@@ -98,22 +100,31 @@ export class SupplierProductController {
   }
 
   @GrpcMethod('SupplierProductService', 'GetSupplierProduct')
-  async getSupplierProduct(data: GetByIdRequest): Promise<GrpcResponse> {
-    // Pipe tự động transform và validate data → GetByIdRequest instance
-    const result = await this.getSupplierProductService.execute(data.id);
+  async getSupplierProduct(data: GetSupplierProductRequest): Promise<GrpcResponse> {
+    // Pipe tự động transform và validate data → GetSupplierProductRequest instance
+    // supplierId đã được inject từ SupplierContextInterceptor (từ headers x-user-id hoặc x-supplier-id)
+    const supplierId = data.supplierId;
+    const result = await this.getSupplierProductService.execute(data.id, supplierId);
     return this.grpcResponseMapper.toSuccessResponse('Product retrieved successfully', result.data);
   }
 
   @GrpcMethod('SupplierProductService', 'GetSupplierProducts')
   async getSupplierProducts(data: GetSupplierProductsRequest): Promise<GrpcResponse> {
     // Pipe tự động transform và validate data → GetSupplierProductsRequest instance
-    const { page = 1, limit = 10, ...filters } = data;
-    const result = await this.getSupplierProductsService.execute(page, limit, filters);
+    // supplierId đã được inject từ SupplierContextInterceptor và validated bởi SupplierProductAccessGuard
+    const { page = 1, limit = 10, supplierId: filterSupplierId, ...filters } = data;
+    // Use supplierId from context (injected by interceptor) - takes precedence to enforce supplier scope
+    const supplierId = data.supplierId || filterSupplierId;
+    
+    // 🔒 SECURITY: supplierId validation is now handled by SupplierProductAccessGuard
+    // No need for redundant validation here - Guard ensures supplierId is present
+    
+    const result = await this.getSupplierProductsService.execute(page, limit, filters, supplierId);
     
     // Include stats if supplierId provided
     let stats;
-    if (data.supplierId) {
-      const statsResult = await this.getSupplierProductStatsService.execute(data.supplierId);
+    if (supplierId) {
+      const statsResult = await this.getSupplierProductStatsService.execute(supplierId);
       if (statsResult?.success) stats = statsResult.data;
     }
 
@@ -145,14 +156,15 @@ export class SupplierProductController {
   @GrpcMethod('SupplierProductService', 'UpdateSupplierProduct')
   async updateSupplierProduct(data: UpdateSupplierProductRequest): Promise<GrpcResponse> {
     // Pipe tự động transform và validate data → UpdateSupplierProductRequest instance
+    // supplierId đã được inject từ SupplierContextInterceptor (từ headers x-user-id hoặc x-supplier-id)
     const result = await this.updateSupplierProductService.execute(data);
     return this.grpcResponseMapper.toSuccessResponse(result.message, result.data);
   }
 
   @GrpcMethod('SupplierProductService', 'DeleteSupplierProduct')
-  async deleteSupplierProduct(data: GetByIdRequest): Promise<GrpcResponse> {
-    // Pipe tự động transform và validate data → GetByIdRequest instance
-    const result = await this.deleteSupplierProductService.execute(data.id);
+  async deleteSupplierProduct(data: DeleteSupplierProductRequest): Promise<GrpcResponse> {
+    // Pipe tự động transform và validate data → DeleteSupplierProductRequest instance
+    const result = await this.deleteSupplierProductService.execute(data.id, data.supplierId);
     return this.grpcResponseMapper.toSuccessResponse(result.message, undefined);
   }
 
@@ -166,14 +178,18 @@ export class SupplierProductController {
   @GrpcMethod('SupplierProductService', 'SuspendSupplierProduct')
   async suspendSupplierProduct(data: SuspendSupplierProductRequest): Promise<GrpcResponse> {
     // Pipe tự động transform và validate data → SuspendSupplierProductRequest instance
-    const result = await this.suspendSupplierProductService.execute(data.id, data.reason, data.suspendedBy, data.suspensionDuration);
+    // supplierId đã được inject từ SupplierContextInterceptor (từ headers x-user-id hoặc x-supplier-id)
+    const supplierId = data.supplierId;
+    const result = await this.suspendSupplierProductService.execute(data.id, data.reason, data.suspendedBy, data.suspensionDuration, supplierId);
     return this.grpcResponseMapper.toServiceResponse(result);
   }
 
   @GrpcMethod('SupplierProductService', 'UnsuspendSupplierProduct')
   async unsuspendSupplierProduct(data: UnsuspendSupplierProductRequest): Promise<GrpcResponse> {
     // Pipe tự động transform và validate data → UnsuspendSupplierProductRequest instance
-    const result = await this.unsuspendSupplierProductService.execute(data.id, data.reason, data.unsuspendedBy);
+    // supplierId đã được inject từ SupplierContextInterceptor (từ headers x-user-id hoặc x-supplier-id)
+    const supplierId = data.supplierId;
+    const result = await this.unsuspendSupplierProductService.execute(data.id, data.reason, data.unsuspendedBy, supplierId);
     return this.grpcResponseMapper.toServiceResponse(result);
   }
 
@@ -186,8 +202,8 @@ export class SupplierProductController {
 
   @Public()
   @GrpcMethod('SupplierProductService', 'GetSupplierProductSellerView')
-  async getSellerProduct(data: GetByIdRequest): Promise<GrpcResponse> {
-    // Pipe tự động transform và validate data → GetByIdRequest instance
+  async getSellerProduct(data: GetSupplierProductRequest): Promise<GrpcResponse> {
+    // Pipe tự động transform và validate data → GetSupplierProductRequest instance
     const result = await this.getSupplierProductSellerViewService.execute(data.id);
     return this.grpcResponseMapper.toServiceResponse(result);
   }
@@ -212,7 +228,25 @@ export class SupplierProductController {
   @GrpcMethod('SupplierProductService', 'getSupplierProductsByIds')
   async getSupplierProductsByIds(data: GetSupplierProductsByIdsRequest): Promise<GrpcResponse> {
     // Pipe tự động transform và validate data → GetSupplierProductsByIdsRequest instance
-    const products = await this.getSupplierProductsByIdsService.execute(data.productIds);
+    // supplierId đã được inject từ SupplierContextInterceptor (từ headers x-user-id hoặc x-supplier-id)
+    const supplierId = data.supplierId;
+    const products = await this.getSupplierProductsByIdsService.execute(data.productIds, supplierId);
     return this.grpcResponseMapper.toProductsResponse('Products retrieved successfully', products);
+  }
+
+  @Public()
+  @GrpcMethod('SupplierProductService', 'DebugMetadata')
+  async debugMetadata(data: any): Promise<GrpcResponse> {
+    console.log('🐛 Debug Metadata Endpoint:');
+    console.log('- Received data:', JSON.stringify(data, null, 2));
+    
+    return {
+      success: true,
+      message: 'Debug info logged to console',
+      data: {
+        receivedData: data,
+        timestamp: new Date().toISOString()
+      }
+    };
   }
 }

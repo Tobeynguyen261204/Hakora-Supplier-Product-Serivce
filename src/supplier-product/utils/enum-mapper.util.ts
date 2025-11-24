@@ -22,10 +22,27 @@ export class EnumMapper {
       return map[val];
     }
     
-    const key = String(val).toUpperCase().startsWith('PRODUCT_STATUS_')
-      ? String(val).toUpperCase()
-      : `PRODUCT_STATUS_${String(val).toUpperCase()}`;
-    return (ProductStatus as Record<string, ProductStatus>)[key];
+    const strVal = String(val).toUpperCase();
+    
+    // Thử map trực tiếp với enum value (ví dụ: "DRAFT" -> ProductStatus.DRAFT)
+    if (strVal in ProductStatus) {
+      return ProductStatus[strVal as keyof typeof ProductStatus];
+    }
+    
+    // Nếu không tìm thấy, thử với prefix (ví dụ: "PRODUCT_STATUS_DRAFT")
+    const keyWithPrefix = strVal.startsWith('PRODUCT_STATUS_')
+      ? strVal
+      : `PRODUCT_STATUS_${strVal}`;
+    
+    // Remove prefix và thử lại
+    if (keyWithPrefix.startsWith('PRODUCT_STATUS_')) {
+      const withoutPrefix = keyWithPrefix.replace('PRODUCT_STATUS_', '');
+      if (withoutPrefix in ProductStatus) {
+        return ProductStatus[withoutPrefix as keyof typeof ProductStatus];
+      }
+    }
+    
+    return undefined;
   }
 
   /**
@@ -43,10 +60,27 @@ export class EnumMapper {
       return map[val];
     }
     
-    const key = String(val).toUpperCase().startsWith('APPROVAL_STATUS_')
-      ? String(val).toUpperCase()
-      : `APPROVAL_STATUS_${String(val).toUpperCase()}`;
-    return (ApprovalStatus as Record<string, ApprovalStatus>)[key];
+    const strVal = String(val).toUpperCase();
+    
+    // Thử map trực tiếp với enum value (ví dụ: "PENDING" -> ApprovalStatus.PENDING)
+    if (strVal in ApprovalStatus) {
+      return ApprovalStatus[strVal as keyof typeof ApprovalStatus];
+    }
+    
+    // Nếu không tìm thấy, thử với prefix (ví dụ: "APPROVAL_STATUS_PENDING")
+    const keyWithPrefix = strVal.startsWith('APPROVAL_STATUS_')
+      ? strVal
+      : `APPROVAL_STATUS_${strVal}`;
+    
+    // Remove prefix và thử lại
+    if (keyWithPrefix.startsWith('APPROVAL_STATUS_')) {
+      const withoutPrefix = keyWithPrefix.replace('APPROVAL_STATUS_', '');
+      if (withoutPrefix in ApprovalStatus) {
+        return ApprovalStatus[withoutPrefix as keyof typeof ApprovalStatus];
+      }
+    }
+    
+    return undefined;
   }
 
   /**
@@ -64,10 +98,27 @@ export class EnumMapper {
       return map[val];
     }
     
-    const key = String(val).toUpperCase().startsWith('PRODUCT_TYPE_')
-      ? String(val).toUpperCase()
-      : `PRODUCT_TYPE_${String(val).toUpperCase()}`;
-    return (ProductType as Record<string, ProductType>)[key];
+    const strVal = String(val).toUpperCase();
+    
+    // Thử map trực tiếp với enum value (ví dụ: "PHYSICAL" -> ProductType.PHYSICAL)
+    if (strVal in ProductType) {
+      return ProductType[strVal as keyof typeof ProductType];
+    }
+    
+    // Nếu không tìm thấy, thử với prefix (ví dụ: "PRODUCT_TYPE_PHYSICAL")
+    const keyWithPrefix = strVal.startsWith('PRODUCT_TYPE_')
+      ? strVal
+      : `PRODUCT_TYPE_${strVal}`;
+    
+    // Remove prefix và thử lại
+    if (keyWithPrefix.startsWith('PRODUCT_TYPE_')) {
+      const withoutPrefix = keyWithPrefix.replace('PRODUCT_TYPE_', '');
+      if (withoutPrefix in ProductType) {
+        return ProductType[withoutPrefix as keyof typeof ProductType];
+      }
+    }
+    
+    return undefined;
   }
 
   /**
@@ -103,6 +154,7 @@ export class EnumMapper {
     return String(val);
   }
 }
+
 
 
 

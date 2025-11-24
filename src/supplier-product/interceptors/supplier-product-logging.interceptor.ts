@@ -19,14 +19,24 @@ export class SupplierProductLoggingInterceptor implements NestInterceptor {
     const methodName = handler.name;
 
     let requestInfo = '';
+    let metadataInfo = '';
     
     if (contextType === 'rpc') {
       const rpcContext = context.switchToRpc();
       const data = rpcContext.getData();
       requestInfo = `gRPC ${className}.${methodName}`;
       
+      // Log metadata details
+      const args = context.getArgs();
+      if (args && args.length > 2 && args[2]) {
+        const metadata = args[2];
+        metadataInfo = JSON.stringify({
+          headers: metadata?.getMap?.() || metadata || {}
+        });
+      }
+      
       this.logger.log(
-        `Incoming gRPC request: ${requestInfo}`,
+        `[${requestInfo}] Metadata: ${metadataInfo}`,
         JSON.stringify(data, null, 2)
       );
     } else if (contextType === 'http') {
@@ -45,10 +55,10 @@ export class SupplierProductLoggingInterceptor implements NestInterceptor {
     return next.handle().pipe(
       tap((response) => {
         const duration = Date.now() - startTime;
-        this.logger.log(
-          `${requestInfo} completed in ${duration}ms`,
-          JSON.stringify(response, null, 2)
-        );
+        // this.logger.log(
+        //   `${requestInfo} completed in ${duration}ms`,
+        //   JSON.stringify(response, null, 2)
+        // );
       }),
       catchError((error) => {
         const duration = Date.now() - startTime;

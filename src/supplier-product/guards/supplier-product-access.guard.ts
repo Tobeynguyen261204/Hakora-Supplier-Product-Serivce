@@ -36,20 +36,80 @@ export class SupplierProductAccessGuard implements CanActivate {
       context.getClass(),
     ]);
 
+    console.log('🛡️ SupplierProductAccessGuard - Debug Info:');
+    console.log('- Method:', context.getHandler().name);
+    console.log('- Is Public:', isPublic);
+
     // If public endpoint, allow access without authentication
     if (isPublic) {
+      console.log('- ✅ Public endpoint, allowing access');
       return true;
     }
 
     const rpcContext = context.switchToRpc();
     const data = rpcContext.getData();
+    const metadata = rpcContext.getContext();
+
+    console.log('- RPC Data:', data);
+    console.log('- RPC Metadata:', metadata);
+
+    // Extract userId/supplierId from metadata
+    // API Gateway truyền metadata dạng: { userId: '...', role: 'user' }
+    let userId = data.userId;
+    let supplierId = data.supplierId;
+
+    if (!userId && !supplierId && metadata) {
+      try {
+        const metadataObj = metadata as any;
+        
+        // gRPC Metadata object với get() method
+        if (metadataObj.get && typeof metadataObj.get === 'function') {
+          const userIdArray = metadataObj.get('userid');
+          const userRoleArray = metadataObj.get('userrole');
+          userId = userIdArray?.[0] ? String(userIdArray[0]) : undefined;
+          const role = userRoleArray?.[0] ? String(userRoleArray[0]).toLowerCase() : undefined;
+          
+          // Nếu role là 'supplier' thì dùng userId làm supplierId
+          if (userId && role && (role === 'supplier' || role.includes('supplier'))) {
+            supplierId = userId;
+          }
+          
+          console.log('- 📦 Extracted from gRPC metadata:');
+          console.log('  - userId:', userId);
+          console.log('  - role:', role);
+          console.log('  - supplierId:', supplierId);
+        }
+      } catch (error) {
+        console.log('- ⚠️ Error extracting metadata:', error);
+      }
+    }
+
+    console.log('- Final userId:', userId);
+    console.log('- Final supplierId:', supplierId);
 
     // Require authentication: at least userId or supplierId must be present
-    // In a real app, you'd validate JWT tokens from metadata or headers
-    if (!data.userId && !data.supplierId) {
+    if (!userId && !supplierId) {
+      console.log('- ❌ No authentication found, throwing UnauthorizedException');
       throw new UnauthorizedException(
-        'Authentication required. Please provide userId or supplierId in request.'
+        'Authentication required. Please provide userId or supplierId in request metadata.'
       );
+    }
+
+    console.log('- ✅ Authentication passed');
+
+    // 🔒 SECURITY: Validate supplierId for supplier-scoped endpoints
+    const requiresSupplierScope = this.checkIfRequiresSupplierScope(context);
+    if (requiresSupplierScope && !supplierId) {
+      console.error('❌ SECURITY VIOLATION: No supplierId provided for supplier-scoped endpoint');
+      console.error('- Method:', context.getHandler().name);
+      console.error('- This prevents unauthorized access to supplier-specific data');
+      throw new UnauthorizedException(
+        'Supplier ID is required for this operation. Please ensure proper authentication headers are provided.'
+      );
+    }
+
+    if (requiresSupplierScope) {
+      console.log('- ✅ Supplier scope validation passed, supplierId:', supplierId);
     }
 
     // Check for role-based access
@@ -75,13 +135,42 @@ export class SupplierProductAccessGuard implements CanActivate {
       [context.getHandler(), context.getClass()]
     );
 
-    if (requiresSupplierAccess && !data.supplierId) {
+    if (requiresSupplierAccess && !supplierId) {
       throw new ForbiddenException(
-        `${SUPPLIER_PRODUCT_CONSTANTS.ERRORS.UNAUTHORIZED_ACTION}: Supplier ID required`
+        `${SUPPLIER_PRODUCT_CONSTANTS.ERRORS.UNAUTHORIZED_ACTION}: Supplier ID required in headers (x-supplier-id or x-user-id with supplier role)`
       );
     }
 
     return true;
+  }
+
+  /**
+   * 🔒 SECURITY: Check if the current endpoint requires supplier scope validation
+   * Centralized list of methods that need supplierId to prevent data leakage
+   */
+  private checkIfRequiresSupplierScope(context: ExecutionContext): boolean {
+    const methodName = context.getHandler().name;
+    
+    // Danh sách methods cần supplierId - CRITICAL SECURITY LIST
+    const supplierScopedMethods = [
+      'getSupplierProducts',      // List products - must be scoped to supplier
+      'getSupplierProduct',       // Get single product - must validate ownership
+      'suspendSupplierProduct',   // Suspend - must validate ownership
+      'unsuspendSupplierProduct', // Unsuspend - must validate ownership  
+      'getSupplierProductStats',  // Stats - must be scoped to supplier
+      'deleteSupplierProduct',    // Delete - must validate ownership
+      'updateSupplierProduct',    // Update - must validate ownership
+      'hideSupplierProduct',      // Hide - must validate ownership
+      'unhideSupplierProduct',    // Unhide - must validate ownership
+    ];
+    
+    const requiresScope = supplierScopedMethods.includes(methodName);
+    
+    if (requiresScope) {
+      console.log('- 🔒 Method requires supplier scope:', methodName);
+    }
+    
+    return requiresScope;
   }
 
   private validateHttpAccess(context: ExecutionContext): boolean {
