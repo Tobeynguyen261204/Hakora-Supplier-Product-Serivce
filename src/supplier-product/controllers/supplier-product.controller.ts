@@ -155,10 +155,171 @@ export class SupplierProductController {
 
   @GrpcMethod('SupplierProductService', 'UpdateSupplierProduct')
   async updateSupplierProduct(data: UpdateSupplierProductRequest): Promise<GrpcResponse> {
+    // Log raw data nhận được từ gRPC để debug
+    console.log('='.repeat(80));
+    console.log('[SupplierProductController] ========== UPDATE REQUEST RECEIVED ==========');
+    console.log('[SupplierProductController] Raw data type:', typeof data);
+    console.log('[SupplierProductController] Raw data keys:', data ? Object.keys(data) : []);
+    console.log('[SupplierProductController] Raw data (JSON):', JSON.stringify(data, null, 2));
+    console.log('[SupplierProductController] Data structure check:', {
+      hasId: !!data?.id,
+      id: data?.id,
+      hasName: !!data?.name,
+      name: data?.name,
+      hasPrice: !!data?.price,
+      price: data?.price,
+      hasSpecifications: !!data?.specifications,
+      specifications: data?.specifications,
+      hasSupplierId: !!data?.supplierId,
+      supplierId: data?.supplierId,
+    });
+    
+    // Clean và validate data trước khi xử lý
+    const cleanedData = this.cleanAndValidateUpdateData(data);
+    
+    console.log('[SupplierProductController] After cleaning:', {
+      id: cleanedData.id,
+      keys: Object.keys(cleanedData),
+      hasPrice: !!cleanedData.price,
+      price: cleanedData.price,
+    });
+    console.log('[SupplierProductController] Cleaned data (JSON):', JSON.stringify(cleanedData, null, 2));
+    console.log('='.repeat(80));
+    
     // Pipe tự động transform và validate data → UpdateSupplierProductRequest instance
     // supplierId đã được inject từ SupplierContextInterceptor (từ headers x-user-id hoặc x-supplier-id)
-    const result = await this.updateSupplierProductService.execute(data);
+    const result = await this.updateSupplierProductService.execute(cleanedData as UpdateSupplierProductRequest);
     return this.grpcResponseMapper.toSuccessResponse(result.message, result.data);
+  }
+  
+  /**
+   * Clean và validate data từ gRPC để tránh corrupt data
+   */
+  private cleanAndValidateUpdateData(data: any): any {
+    if (!data || typeof data !== 'object') {
+      return data;
+    }
+    
+    const cleaned: any = {};
+    
+    // Chỉ giữ các field hợp lệ trong UpdateSupplierProductRequest proto
+    const validFields = [
+      'id', 'name', 'description', 'shortDescription', 'sku', 'categoryName',
+      'price', 'inventory', 'specifications', 'type', 'tags',
+      'isActive', 'isFeatured', 'weight', 'dimensions', 'seoData', 'images', 'supplierId'
+    ];
+    
+    validFields.forEach((field) => {
+      if (data[field] !== undefined && data[field] !== null) {
+        cleaned[field] = data[field];
+      }
+    });
+    
+    // Clean string fields - remove binary data và non-printable characters
+    ['id', 'name', 'description', 'shortDescription', 'sku', 'categoryName'].forEach((field) => {
+      if (cleaned[field] && typeof cleaned[field] === 'string') {
+        // Remove non-printable characters (giữ lại \n, \r, \t)
+        const original = cleaned[field];
+        cleaned[field] = original.replace(/[\x00-\x08\x0B-\x0C\x0E-\x1F\x7F]/g, '');
+        if (cleaned[field].length !== original.length) {
+          console.warn(`[SupplierProductController] Removed non-printable chars from ${field}`);
+        }
+        // Validate không có binary data (nếu string quá dài hoặc có pattern binary)
+        if (cleaned[field].length > 10000) {
+          console.warn(`[SupplierProductController] Field ${field} is too long, truncating`);
+          cleaned[field] = cleaned[field].substring(0, 10000);
+        }
+      }
+    });
+    
+    // Validate và clean price structure
+    if (cleaned.price && typeof cleaned.price === 'object') {
+      const price = cleaned.price;
+      cleaned.price = {
+        listingPrice: price.listingPrice !== undefined ? Number(price.listingPrice) : undefined,
+        retailPrice: price.retailPrice !== undefined ? Number(price.retailPrice) : undefined,
+        currency: typeof price.currency === 'string' ? price.currency : 'VND',
+        profitAmount: price.profitAmount !== undefined ? Number(price.profitAmount) : undefined,
+      };
+      
+      // Validate price values
+      if (cleaned.price.listingPrice !== undefined) {
+        if (isNaN(cleaned.price.listingPrice) || !isFinite(cleaned.price.listingPrice) || cleaned.price.listingPrice < 0) {
+          console.warn('[SupplierProductController] Invalid listingPrice, removing price');
+          delete cleaned.price;
+        }
+      }
+    }
+    
+    // Validate và clean specifications
+    if (cleaned.specifications && typeof cleaned.specifications === 'object') {
+      const specs = cleaned.specifications;
+      if (specs.specifications && typeof specs.specifications === 'object') {
+        // Ensure specifications is a map<string, string>
+        const specsMap: Record<string, string> = {};
+        Object.keys(specs.specifications).forEach((key) => {
+          const value = specs.specifications[key];
+          if (typeof value === 'string') {
+            specsMap[key] = value;
+          } else if (value !== undefined && value !== null) {
+            specsMap[key] = String(value);
+          }
+        });
+        cleaned.specifications = {
+          specifications: specsMap,
+          materials: Array.isArray(specs.materials) ? specs.materials.filter((m: any) => typeof m === 'string') : [],
+          colors: Array.isArray(specs.colors) ? specs.colors.filter((c: any) => typeof c === 'string') : [],
+          sizes: Array.isArray(specs.sizes) ? specs.sizes.filter((s: any) => typeof s === 'string') : [],
+        };
+      }
+    }
+    
+    // Validate type
+    if (cleaned.type !== undefined) {
+      if (typeof cleaned.type === 'number') {
+        // Convert number to enum string
+        const typeMap: Record<number, string> = {
+          1: 'PRODUCT_TYPE_PHYSICAL',
+          2: 'PRODUCT_TYPE_DIGITAL',
+          3: 'PRODUCT_TYPE_SERVICE',
+        };
+        if (typeMap[cleaned.type]) {
+          cleaned.type = typeMap[cleaned.type];
+        } else {
+          console.warn('[SupplierProductController] Invalid type number, removing');
+          delete cleaned.type;
+        }
+      } else if (typeof cleaned.type === 'string') {
+        // Ensure enum format
+        if (!cleaned.type.startsWith('PRODUCT_TYPE_')) {
+          const upper = cleaned.type.toUpperCase();
+          if (upper === 'PHYSICAL' || upper === 'DIGITAL' || upper === 'SERVICE') {
+            cleaned.type = `PRODUCT_TYPE_${upper}`;
+          }
+        }
+      }
+    }
+    
+    // Validate weight
+    if (cleaned.weight !== undefined) {
+      const weight = Number(cleaned.weight);
+      if (isNaN(weight) || !isFinite(weight) || weight < 0) {
+        console.warn('[SupplierProductController] Invalid weight, removing');
+        delete cleaned.weight;
+      } else {
+        cleaned.weight = weight;
+      }
+    }
+    
+    // Validate tags
+    if (cleaned.tags && Array.isArray(cleaned.tags)) {
+      cleaned.tags = cleaned.tags
+        .filter((tag: any) => typeof tag === 'string')
+        .map((tag: string) => tag.trim())
+        .filter((tag: string) => tag.length > 0 && tag.length < 100); // Max length per tag
+    }
+    
+    return cleaned;
   }
 
   @GrpcMethod('SupplierProductService', 'DeleteSupplierProduct')
@@ -210,10 +371,44 @@ export class SupplierProductController {
 
   @Public()
   @GrpcMethod('SupplierProductService', 'ListSupplierProductSellerView')
-  async listSellerProducts(data: ListSupplierProductSellerViewRequest): Promise<GrpcResponse> {
-    // Pipe tự động transform và validate data → ListSupplierProductSellerViewRequest instance
-    const { page = 1, limit = 10, ...filters } = data;
+  async listSellerProducts(data: GetSupplierProductsRequest): Promise<GrpcResponse> {
+    // Log request để debug
+    console.log('[SupplierProductController] ListSupplierProductSellerView request:', {
+      page: data.page,
+      limit: data.limit,
+      categoryName: data.categoryName,
+      search: data.search,
+      supplierId: data.supplierId,
+      keys: Object.keys(data),
+      fullData: JSON.stringify(data, null, 2),
+    });
+    
+    // CRITICAL: Proto sử dụng GetSupplierProductsRequest
+    // DTO có categoryName (mapped từ proto categoryId field 6)
+    const page = data.page !== undefined && data.page !== null ? Number(data.page) : 1;
+    const limit = data.limit !== undefined && data.limit !== null ? Number(data.limit) : 10;
+    
+    // DTO đã có categoryName (mapped từ proto categoryId)
+    const categoryName = data.categoryName;
+    
+    const filters = {
+      categoryName: categoryName,
+      search: data.search,
+      supplierId: data.supplierId,
+    };
+    
+    console.log('[SupplierProductController] Parsed pagination:', { page, limit, filters });
+    
     const result = await this.listSupplierProductSellerViewService.execute(page, limit, filters);
+    
+    console.log('[SupplierProductController] Result:', {
+      total: result.total,
+      page: result.page,
+      limit: result.limit,
+      totalPages: result.totalPages,
+      productsCount: result.products.length,
+    });
+    
     return this.grpcResponseMapper.toServicePaginatedResponse(result);
   }
 

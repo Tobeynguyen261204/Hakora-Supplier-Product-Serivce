@@ -19,16 +19,97 @@ export class SupplierProductValidationPipe implements PipeTransform<any> {
       return value;
     }
 
+    // Log raw value trước khi transform để debug
+    console.log('[SupplierProductValidationPipe] ========== TRANSFORM START ==========');
+    console.log('[SupplierProductValidationPipe] Metatype:', metatype.name);
+    console.log('[SupplierProductValidationPipe] Raw value:', JSON.stringify(value, null, 2));
+    console.log('[SupplierProductValidationPipe] Raw value keys:', value ? Object.keys(value) : []);
+    console.log('[SupplierProductValidationPipe] Raw value check:', {
+      hasPage: !!value?.page,
+      page: value?.page,
+      hasLimit: !!value?.limit,
+      limit: value?.limit,
+      hasCategoryId: !!value?.categoryId,
+      categoryId: value?.categoryId,
+      hasCategoryName: !!value?.categoryName,
+      categoryName: value?.categoryName,
+      hasSearch: !!value?.search,
+      search: value?.search,
+      hasIsFeatured: !!value?.isFeatured,
+      isFeatured: value?.isFeatured,
+    });
+
+    // ✅ CRITICAL: Loại bỏ metadata fields (userId, userRole, supplierId) khỏi data
+    // Các field này được inject bởi interceptor, không phải là phần của request DTO
+    const metadataFields = ['userId', 'userRole', 'supplierId'];
+    const valueWithoutMetadata = { ...value };
+    metadataFields.forEach(field => {
+      if (field in valueWithoutMetadata) {
+        delete valueWithoutMetadata[field];
+        console.log(`[SupplierProductValidationPipe] Removed metadata field: ${field}`);
+      }
+    });
+
+    // ✅ Check nếu sau khi loại bỏ metadata, data trở thành empty object
+    // Điều này có thể xảy ra nếu request thực sự không có body (chỉ có metadata)
+    const remainingKeys = Object.keys(valueWithoutMetadata).filter(key => valueWithoutMetadata[key] !== undefined);
+    if (remainingKeys.length === 0) {
+      console.log('[SupplierProductValidationPipe] ⚠️ WARNING: Data is empty after removing metadata fields');
+      console.log('[SupplierProductValidationPipe] This may indicate request has no body, only metadata');
+      console.log('[SupplierProductValidationPipe] Will proceed with empty object - DTO will use default values');
+    }
+
+    // Clean data trước khi transform (remove binary data, validate structure)
+    const cleanedValue = this.cleanInputData(valueWithoutMetadata);
+    console.log('[SupplierProductValidationPipe] After cleanInputData:', {
+      keys: Object.keys(cleanedValue),
+      page: cleanedValue?.page,
+      limit: cleanedValue?.limit,
+      categoryId: cleanedValue?.categoryId,
+    });
+
+    // CRITICAL: Map categoryId → categoryName TRƯỚC khi transform (proto có categoryId, DTO có categoryName)
+    if (cleanedValue.categoryId && !cleanedValue.categoryName) {
+      cleanedValue.categoryName = cleanedValue.categoryId;
+      console.log('[SupplierProductValidationPipe] Mapped categoryId → categoryName:', cleanedValue.categoryName);
+    }
+
     // Transform enum values và UUID fields từ gRPC format sang domain format trước khi validate
     const transformedValue = this.transformEnums(
-      this.transformUUIDs(value, metatype),
+      this.transformUUIDs(cleanedValue, metatype),
       metatype
     );
+    console.log('[SupplierProductValidationPipe] After transformEnums/transformUUIDs:', {
+      keys: Object.keys(transformedValue),
+      page: transformedValue?.page,
+      limit: transformedValue?.limit,
+      categoryName: transformedValue?.categoryName,
+    });
 
+    // CRITICAL: Đảm bảo page và limit được map đúng
+    // plainToInstance có thể không map đúng nếu field types không match
+    // Đảm bảo page và limit là numbers trước khi plainToInstance
+    if (transformedValue.page !== undefined) {
+      transformedValue.page = Number(transformedValue.page) || 1;
+    }
+    if (transformedValue.limit !== undefined) {
+      transformedValue.limit = Number(transformedValue.limit) || 10;
+    }
+    
     const object = plainToInstance(metatype, transformedValue, {
       enableImplicitConversion: true,
       exposeDefaultValues: true,
+      excludeExtraneousValues: false, // CRITICAL: Không exclude các field không có decorator
     });
+    console.log('[SupplierProductValidationPipe] After plainToInstance:', {
+      keys: Object.keys(object),
+      page: object?.page,
+      limit: object?.limit,
+      categoryName: object?.categoryName,
+      search: object?.search,
+      isFeatured: object?.isFeatured,
+    });
+    console.log('[SupplierProductValidationPipe] ========== TRANSFORM END ==========');
     
     const errors = await validate(object, {
       whitelist: true,
@@ -86,6 +167,14 @@ export class SupplierProductValidationPipe implements PipeTransform<any> {
     });
 
     // Xử lý categoryName (có thể là string, không phải UUID)
+    // CRITICAL: Proto có categoryId (field 6), nhưng DTO có categoryName
+    // Map categoryId → categoryName nếu có
+    if ('categoryId' in transformed && transformed.categoryId !== undefined && transformed.categoryId !== null) {
+      transformed.categoryName = typeof transformed.categoryId === 'string' 
+        ? transformed.categoryId.trim() 
+        : String(transformed.categoryId);
+      delete transformed.categoryId; // Xóa categoryId sau khi map
+    }
     if ('categoryName' in transformed && transformed.categoryName !== undefined && transformed.categoryName !== null) {
       if (typeof transformed.categoryName === 'string') {
         transformed.categoryName = transformed.categoryName.trim();
@@ -190,6 +279,56 @@ export class SupplierProductValidationPipe implements PipeTransform<any> {
   private toValidate(metatype: Function): boolean {
     const types: Function[] = [String, Boolean, Number, Array, Object];
     return !types.includes(metatype);
+  }
+
+  /**
+   * Clean input data để tránh corrupt data từ gRPC
+   */
+  private cleanInputData(value: any): any {
+    if (!value || typeof value !== 'object') {
+      return value;
+    }
+
+    const cleaned: any = { ...value };
+
+    // Clean string fields - remove binary data
+    ['id', 'name', 'description', 'shortDescription', 'sku', 'categoryName', 'supplierId'].forEach((field) => {
+      if (cleaned[field] && typeof cleaned[field] === 'string') {
+        // Remove non-printable characters (giữ lại \n, \r, \t)
+        const original = cleaned[field];
+        cleaned[field] = original.replace(/[\x00-\x08\x0B-\x0C\x0E-\x1F\x7F]/g, '');
+        
+        // Validate không phải binary data (nếu có quá nhiều non-printable chars)
+        if (cleaned[field].length < original.length * 0.5) {
+          this.logger.warn(`Field ${field} contains too many non-printable chars, may be corrupted`);
+        }
+      }
+    });
+
+    // Validate price structure
+    if (cleaned.price && typeof cleaned.price === 'object') {
+      const price = cleaned.price;
+      // Ensure price has valid structure
+      if (price.listingPrice !== undefined) {
+        const listingPrice = Number(price.listingPrice);
+        if (isNaN(listingPrice) || !isFinite(listingPrice) || listingPrice < 0 || listingPrice > Number.MAX_SAFE_INTEGER) {
+          this.logger.warn('Invalid listingPrice detected, may be corrupted');
+          // Don't delete, let validation handle it
+        }
+      }
+    }
+
+    // Validate specifications structure
+    if (cleaned.specifications && typeof cleaned.specifications === 'object') {
+      const specs = cleaned.specifications;
+      // Ensure specifications is an object, not corrupted
+      if (specs.specifications && typeof specs.specifications !== 'object') {
+        this.logger.warn('Invalid specifications structure detected');
+        delete cleaned.specifications;
+      }
+    }
+
+    return cleaned;
   }
 }
 

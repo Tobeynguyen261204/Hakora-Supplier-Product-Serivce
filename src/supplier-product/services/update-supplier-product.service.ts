@@ -24,6 +24,18 @@ export class UpdateSupplierProductService {
 
   async execute(request: UpdateSupplierProductRequest): Promise<{ success: boolean; message: string; data?: SupplierProductResponseDto }> {
     try {
+      console.log('='.repeat(80));
+      console.log('[UpdateSupplierProductService] ========== EXECUTE UPDATE ==========');
+      console.log('[UpdateSupplierProductService] Request received:', {
+        id: request?.id,
+        name: request?.name,
+        description: request?.description?.substring(0, 50),
+        price: request?.price,
+        supplierId: request?.supplierId,
+        keys: request ? Object.keys(request) : [],
+      });
+      console.log('[UpdateSupplierProductService] Full request (JSON):', JSON.stringify(request, null, 2));
+      
       if (!request || !request.id) {
         return { success: false, message: 'id is required' };
       }
@@ -31,6 +43,14 @@ export class UpdateSupplierProductService {
       if (!existing) {
         return { success: false, message: 'Product not found' };
       }
+      
+      console.log('[UpdateSupplierProductService] Existing product:', {
+        id: existing.id,
+        name: existing.name,
+        description: existing.description?.substring(0, 50),
+        price: existing.price,
+        supplierId: existing.supplierId,
+      });
 
       // ✅ Validate supplier scope: only supplier can update their own products
       if (request.supplierId && existing.supplierId !== request.supplierId) {
@@ -87,12 +107,42 @@ export class UpdateSupplierProductService {
       // ✅ Keep Value Objects for business logic, convert only when saving
       const updated = new SupplierProductOrm();
       updated.id = existing.id;
+      
+      // CRITICAL: Chỉ update các field có giá trị hợp lệ (không phải undefined, null, hoặc empty string corrupt)
+      // Sử dụng nullish coalescing nhưng validate thêm
       updated.supplierId = request.supplierId ?? existing.supplierId;
-      updated.name = request.name ?? existing.name;
-      updated.description = request.description ?? existing.description;
-      updated.shortDescription = request.shortDescription ?? existing.shortDescription;
-      updated.sku = request.sku ?? existing.sku;
-      updated.categoryName = request.categoryName ?? existing.categoryName;
+      
+      // Validate name - không update nếu là empty string hoặc corrupt
+      updated.name = (request.name && typeof request.name === 'string' && request.name.trim().length > 0)
+        ? request.name.trim()
+        : existing.name;
+      
+      // Validate description - không update nếu là empty string hoặc corrupt
+      updated.description = (request.description && typeof request.description === 'string' && request.description.trim().length > 0)
+        ? request.description.trim()
+        : existing.description;
+      
+      // Validate shortDescription
+      updated.shortDescription = (request.shortDescription && typeof request.shortDescription === 'string' && request.shortDescription.trim().length > 0)
+        ? request.shortDescription.trim()
+        : existing.shortDescription;
+      
+      // Validate sku
+      updated.sku = (request.sku && typeof request.sku === 'string' && request.sku.trim().length > 0)
+        ? request.sku.trim()
+        : existing.sku;
+      
+      // Validate categoryName
+      updated.categoryName = (request.categoryName && typeof request.categoryName === 'string' && request.categoryName.trim().length > 0)
+        ? request.categoryName.trim()
+        : existing.categoryName;
+      
+      console.log('[UpdateSupplierProductService] After field validation:', {
+        name: updated.name,
+        description: updated.description?.substring(0, 50),
+        sku: updated.sku,
+        categoryName: updated.categoryName,
+      });
       
       // ✅ Use Value Object business logic when converting to JSONB
       updated.price = {
@@ -115,11 +165,28 @@ export class UpdateSupplierProductService {
       updated.approvalStatus = existing.approvalStatus;
       updated.images = existing.images;
       updated.reviews = existing.reviews;
-      updated.tags = request.tags ?? existing.tags;
-      updated.isActive = request.isActive ?? existing.isActive;
-      updated.isFeatured = request.isFeatured ?? existing.isFeatured;
+      // Validate tags - chỉ update nếu là array hợp lệ
+      updated.tags = (request.tags && Array.isArray(request.tags) && request.tags.length > 0)
+        ? request.tags.filter((tag: any) => typeof tag === 'string' && tag.trim().length > 0)
+        : existing.tags;
+      
+      // Validate boolean fields - chỉ update nếu không phải undefined
+      updated.isActive = request.isActive !== undefined ? Boolean(request.isActive) : existing.isActive;
+      updated.isFeatured = request.isFeatured !== undefined ? Boolean(request.isFeatured) : existing.isFeatured;
       updated.isSuspend = existing.isSuspend;
-      updated.weight = request.weight ?? existing.weight;
+      
+      // Validate weight - chỉ update nếu là number hợp lệ
+      updated.weight = (request.weight !== undefined && typeof request.weight === 'number' && !isNaN(request.weight) && request.weight >= 0)
+        ? request.weight
+        : existing.weight;
+      
+      console.log('[UpdateSupplierProductService] Final updated object:', {
+        id: updated.id,
+        name: updated.name,
+        price: updated.price,
+        supplierId: updated.supplierId,
+      });
+      console.log('='.repeat(80));
       updated.dimensions = nextDimensions && nextDimensions.length !== undefined && nextDimensions.width !== undefined && nextDimensions.height !== undefined && nextDimensions.unit
           ? {
               length: nextDimensions.length,

@@ -131,6 +131,18 @@ export class SupplierProductRepository extends Repository<SupplierProductOrm> {
   }
 
   async deleteById(id: string): Promise<void> {
+    // CRITICAL: Xóa các bảng liên quan trước để tránh foreign key constraint violation
+    // Foreign key constraints:
+    // - FK_b367708bf720c8dd62fc6833161 on table "product_images"
+    // - Có thể có foreign key trên product_reviews
+    
+    // 1. Xóa product_images trước
+    await this.imageRepo.delete({ productId: id });
+    
+    // 2. Xóa product_reviews nếu có
+    await this.reviewRepo.delete({ productId: id });
+    
+    // 3. Sau đó mới xóa supplier_product
     await super.delete({ id });
   }
 
