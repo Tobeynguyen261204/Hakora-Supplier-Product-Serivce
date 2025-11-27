@@ -172,6 +172,10 @@ export class UpdateSupplierProductRequest {
   categoryName?: string;
 
   @IsOptional()
+  @IsUUID(4, { message: 'Category ID must be a valid UUID' })
+  categoryId?: string;
+
+  @IsOptional()
   @ValidateNested()
   @Type(() => UpdateProductPriceDto)
   price?: UpdateProductPriceDto;

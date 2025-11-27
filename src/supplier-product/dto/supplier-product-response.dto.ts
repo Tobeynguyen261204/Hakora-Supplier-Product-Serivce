@@ -86,6 +86,7 @@ export class SupplierProductResponseDto {
   shortDescription?: string;
   sku: string;
   categoryName: string;
+  categoryId?: string;
   price: ProductPriceResponseDto;
   inventory: ProductInventoryResponseDto;
   specifications: ProductSpecificationsResponseDto;

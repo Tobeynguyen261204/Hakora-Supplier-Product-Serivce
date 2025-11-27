@@ -376,6 +376,7 @@ export class SupplierProductController {
     console.log('[SupplierProductController] ListSupplierProductSellerView request:', {
       page: data.page,
       limit: data.limit,
+      categoryId: data.categoryId,
       categoryName: data.categoryName,
       search: data.search,
       supplierId: data.supplierId,
@@ -383,19 +384,39 @@ export class SupplierProductController {
       fullData: JSON.stringify(data, null, 2),
     });
     
-    // CRITICAL: Proto sử dụng GetSupplierProductsRequest
-    // DTO có categoryName (mapped từ proto categoryId field 6)
+    // ✅ FIXED: DTO có cả categoryId và categoryName
+    // Ưu tiên dùng categoryId để filter chính xác
     const page = data.page !== undefined && data.page !== null ? Number(data.page) : 1;
     const limit = data.limit !== undefined && data.limit !== null ? Number(data.limit) : 10;
     
-    // DTO đã có categoryName (mapped từ proto categoryId)
-    const categoryName = data.categoryName;
-    
-    const filters = {
-      categoryName: categoryName,
+    const filters: any = {
       search: data.search,
       supplierId: data.supplierId,
     };
+    
+    // ✅ FIXED: Ưu tiên categoryId, fallback sang categoryName
+    if (data.categoryId) {
+      filters.categoryId = data.categoryId;
+    } else if (data.categoryName) {
+      filters.categoryName = data.categoryName;
+    }
+    
+    // ✅ FIXED: Thêm các filters còn lại
+    if (data.isFeatured !== undefined) {
+      filters.isFeatured = data.isFeatured;
+    }
+    if (data.type) {
+      filters.type = data.type;
+    }
+    if (data.minPrice !== undefined) {
+      filters.minPrice = data.minPrice;
+    }
+    if (data.maxPrice !== undefined) {
+      filters.maxPrice = data.maxPrice;
+    }
+    if (data.tags && data.tags.length > 0) {
+      filters.tags = data.tags;
+    }
     
     console.log('[SupplierProductController] Parsed pagination:', { page, limit, filters });
     

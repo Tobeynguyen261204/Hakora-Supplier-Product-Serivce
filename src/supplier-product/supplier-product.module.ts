@@ -1,7 +1,9 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule } from '@nestjs/config';
+import { ClientsModule, Transport } from '@nestjs/microservices';
 import { APP_FILTER, APP_INTERCEPTOR, APP_GUARD, APP_PIPE } from '@nestjs/core';
+import { join } from 'path';
 
 // Controllers
 import { SupplierProductController } from './controllers/supplier-product.controller';
@@ -25,6 +27,7 @@ import { GetSupplierProductsByIdsService } from './services/get-supplier-product
 import { SupplierProductFactoryService } from './services/supplier-product-factory.service';
 import { SupplierProductBusinessService } from './services/supplier-product-business.service';
 import { SupplierProductComputedPropertiesService } from './services/supplier-product-computed-properties.service';
+import { CategoryValidationService } from './services/category-validation.service';
 
 // Mappers
 import { GrpcRequestMapper } from './mappers/grpc-request.mapper';
@@ -51,6 +54,26 @@ import { SUPPLIER_PRODUCT_CONSTANTS } from './constants/supplier-product.constan
 
 @Module({
   imports: [
+    // gRPC Client for API Gateway (CategoryService)
+    // ✅ FIXED: Now calling API Gateway instead of directly calling category-service
+    ClientsModule.register([
+      {
+        name: 'API_GATEWAY_CATEGORY_SERVICE',
+        transport: Transport.GRPC,
+        options: {
+          package: 'category',
+          protoPath: join(__dirname, '..', '..', 'proto', 'category.proto'),
+          url: process.env.API_GATEWAY_GRPC_URL || '0.0.0.0:50060',
+          loader: {
+            keepCase: true,
+            longs: String,
+            enums: String,
+            defaults: true,
+            arrays: true,
+          },
+        },
+      },
+    ]),
     
     // TypeORM
     TypeOrmModule.forFeature([
@@ -94,6 +117,7 @@ import { SUPPLIER_PRODUCT_CONSTANTS } from './constants/supplier-product.constan
     SupplierProductFactoryService,
     SupplierProductBusinessService,
     SupplierProductComputedPropertiesService,
+    CategoryValidationService,
 
     // Mappers
     GrpcRequestMapper,

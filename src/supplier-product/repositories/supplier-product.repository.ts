@@ -171,10 +171,15 @@ export class SupplierProductRepository extends Repository<SupplierProductOrm> {
   }
 
   /**
-   * Tìm products theo categoryId
+   * Tìm products theo categoryId (UUID) hoặc categoryName
    * Giữ custom method vì đây là business query phổ biến
    */
   async findByCategoryId(categoryId: string): Promise<SupplierProductOrm[]> {
+    // Try as UUID first, then fallback to categoryName
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (uuidRegex.test(categoryId)) {
+      return this.findWithRelations({ categoryId });
+    }
     return this.findWithRelations({ categoryName: categoryId });
   }
 
@@ -183,6 +188,11 @@ export class SupplierProductRepository extends Repository<SupplierProductOrm> {
    * Custom method vì có business logic (filter theo status)
    */
   async findByCategoryIdAndStatus(categoryId: string, status: ProductStatus): Promise<SupplierProductOrm[]> {
+    // Try as UUID first, then fallback to categoryName
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (uuidRegex.test(categoryId)) {
+      return this.findWithRelations({ categoryId, status });
+    }
     return this.findWithRelations({ categoryName: categoryId, status });
   }
 
@@ -242,6 +252,15 @@ export class SupplierProductRepository extends Repository<SupplierProductOrm> {
    * Custom method vì có business logic (active + category filter)
    */
   async findActiveByCategoryId(categoryId: string): Promise<SupplierProductOrm[]> {
+    // Try as UUID first, then fallback to categoryName
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (uuidRegex.test(categoryId)) {
+      return this.findWithRelations({ 
+        categoryId,
+        status: ProductStatus.PUBLISHED, 
+        isActive: true 
+      });
+    }
     return this.findWithRelations({ 
       categoryName: categoryId, 
       status: ProductStatus.PUBLISHED, 
@@ -336,6 +355,7 @@ export class SupplierProductRepository extends Repository<SupplierProductOrm> {
       approvalStatus?: ApprovalStatus;
       supplierId?: string;
       categoryName?: string;
+      categoryId?: string;
       type?: ProductType;
       minPrice?: number;
       maxPrice?: number;
@@ -366,7 +386,10 @@ export class SupplierProductRepository extends Repository<SupplierProductOrm> {
       if (filters.supplierId) {
         queryBuilder.andWhere('product.supplierId = :supplierId', { supplierId: filters.supplierId });
       }
-      if (filters.categoryName) {
+      // ✅ Support both categoryId (preferred) and categoryName (backward compatible)
+      if (filters.categoryId) {
+        queryBuilder.andWhere('product.categoryId = :categoryId', { categoryId: filters.categoryId });
+      } else if (filters.categoryName) {
         queryBuilder.andWhere('product.categoryName = :categoryName', { categoryName: filters.categoryName });
       }
       if (filters.type) {
@@ -431,6 +454,11 @@ export class SupplierProductRepository extends Repository<SupplierProductOrm> {
   }
 
   async countByCategoryId(categoryId: string): Promise<number> {
+    // Try as UUID first, then fallback to categoryName
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (uuidRegex.test(categoryId)) {
+      return this.count({ where: { categoryId } });
+    }
     return this.count({ where: { categoryName: categoryId } });
   }
 
@@ -513,8 +541,9 @@ export class SupplierProductRepository extends Repository<SupplierProductOrm> {
     const product = await this.findById(productId);
     if (!product) return [];
 
-    // Find products in the same category
-    const relatedProducts = await this.findByCategoryId(product.categoryName);
+    // Find products in the same category (prefer categoryId if available)
+    const categoryIdentifier = product.categoryId || product.categoryName;
+    const relatedProducts = await this.findByCategoryId(categoryIdentifier);
     return relatedProducts
       .filter(p => p.id !== productId)
       .slice(0, limit);
@@ -683,6 +712,7 @@ export class SupplierProductRepository extends Repository<SupplierProductOrm> {
     entity.shortDescription = product.shortDescription;
     entity.sku = product.sku;
     entity.categoryName = product.categoryName;
+    entity.categoryId = product.categoryId;
     entity.price = safePrice;
     entity.inventory = safeInventory;
     entity.specifications = {

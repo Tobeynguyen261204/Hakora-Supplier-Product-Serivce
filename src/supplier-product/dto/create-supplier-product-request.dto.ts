@@ -177,6 +177,10 @@ export class CreateSupplierProductRequest {
   @Length(1, 100, { message: 'Category name must be between 1 and 100 characters' })
   categoryName: string;
 
+  @IsOptional()
+  @IsUUID(4, { message: 'Category ID must be a valid UUID' })
+  categoryId?: string;
+
   @ValidateNested()
   @Type(() => ProductPriceDto)
   price: ProductPriceDto;

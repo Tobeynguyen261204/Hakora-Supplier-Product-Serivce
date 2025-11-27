@@ -68,11 +68,8 @@ export class SupplierProductValidationPipe implements PipeTransform<any> {
       categoryId: cleanedValue?.categoryId,
     });
 
-    // CRITICAL: Map categoryId → categoryName TRƯỚC khi transform (proto có categoryId, DTO có categoryName)
-    if (cleanedValue.categoryId && !cleanedValue.categoryName) {
-      cleanedValue.categoryName = cleanedValue.categoryId;
-      console.log('[SupplierProductValidationPipe] Mapped categoryId → categoryName:', cleanedValue.categoryName);
-    }
+    // ✅ FIXED: Không map categoryId → categoryName nữa
+    // DTO đã có categoryId field, giữ nguyên để filter chính xác bằng UUID
 
     // Transform enum values và UUID fields từ gRPC format sang domain format trước khi validate
     const transformedValue = this.transformEnums(
@@ -83,6 +80,7 @@ export class SupplierProductValidationPipe implements PipeTransform<any> {
       keys: Object.keys(transformedValue),
       page: transformedValue?.page,
       limit: transformedValue?.limit,
+      categoryId: transformedValue?.categoryId,
       categoryName: transformedValue?.categoryName,
     });
 
@@ -166,15 +164,18 @@ export class SupplierProductValidationPipe implements PipeTransform<any> {
       }
     });
 
-    // Xử lý categoryName (có thể là string, không phải UUID)
-    // CRITICAL: Proto có categoryId (field 6), nhưng DTO có categoryName
-    // Map categoryId → categoryName nếu có
+    // ✅ FIXED: Xử lý categoryId (UUID) - giữ nguyên để filter chính xác
+    // DTO đã có categoryId field, không map sang categoryName nữa
     if ('categoryId' in transformed && transformed.categoryId !== undefined && transformed.categoryId !== null) {
-      transformed.categoryName = typeof transformed.categoryId === 'string' 
-        ? transformed.categoryId.trim() 
-        : String(transformed.categoryId);
-      delete transformed.categoryId; // Xóa categoryId sau khi map
+      if (typeof transformed.categoryId === 'string') {
+        transformed.categoryId = transformed.categoryId.trim();
+      } else if (typeof transformed.categoryId === 'number') {
+        transformed.categoryId = String(transformed.categoryId);
+      }
+      // ❌ KHÔNG map sang categoryName - giữ nguyên categoryId để filter
     }
+    
+    // Xử lý categoryName (nếu có) - dùng cho create/update, không dùng cho filter
     if ('categoryName' in transformed && transformed.categoryName !== undefined && transformed.categoryName !== null) {
       if (typeof transformed.categoryName === 'string') {
         transformed.categoryName = transformed.categoryName.trim();
@@ -292,7 +293,8 @@ export class SupplierProductValidationPipe implements PipeTransform<any> {
     const cleaned: any = { ...value };
 
     // Clean string fields - remove binary data
-    ['id', 'name', 'description', 'shortDescription', 'sku', 'categoryName', 'supplierId'].forEach((field) => {
+    // ✅ FIXED: Thêm categoryId vào danh sách fields cần clean
+    ['id', 'name', 'description', 'shortDescription', 'sku', 'categoryName', 'categoryId', 'supplierId'].forEach((field) => {
       if (cleaned[field] && typeof cleaned[field] === 'string') {
         // Remove non-printable characters (giữ lại \n, \r, \t)
         const original = cleaned[field];

@@ -71,6 +71,11 @@ export class GetSupplierProductsRequest {
   @IsString()
   categoryName?: string;
 
+  // ✅ FIXED: Thêm categoryId để filter chính xác bằng UUID
+  @IsOptional()
+  @IsUUID(4, { message: 'Category ID must be a valid UUID' })
+  categoryId?: string;
+
   @IsOptional()
   @IsEnum(ProductType)
   type?: ProductType;

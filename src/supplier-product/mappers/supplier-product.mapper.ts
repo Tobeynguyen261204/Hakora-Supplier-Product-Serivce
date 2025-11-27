@@ -192,6 +192,7 @@ export class SupplierProductMapper {
       shortDescription: product.shortDescription,
       sku: product.sku,
       categoryName: product.categoryName,
+      categoryId: product.categoryId,
       price: this.mapPriceToDto(product.price),
       inventory: this.mapInventoryToDto(
         product.inventory instanceof ProductInventory

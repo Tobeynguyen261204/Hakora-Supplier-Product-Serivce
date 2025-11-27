@@ -38,6 +38,10 @@ export class SupplierProductOrm {
   @Column()
   categoryName!: string;
 
+  @Column('uuid', { nullable: true })
+  @Index(['categoryId'])
+  categoryId?: string;
+
   @Column('jsonb')
   price!: {
     listingPrice: number;

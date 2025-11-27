@@ -14,7 +14,21 @@ export class ListSupplierProductSellerViewService {
     private readonly computedPropertiesService: SupplierProductComputedPropertiesService
   ) {}
 
-  async execute(page = 1, limit = 10, filters?: { categoryName?: string; search?: string; supplierId?: string }): Promise<{ success: boolean; message: string; products: SupplierProductSellerViewListItemDto[]; total: number; page: number; limit: number; totalPages: number }> {
+  async execute(
+    page = 1, 
+    limit = 10, 
+    filters?: {
+      categoryName?: string;
+      categoryId?: string; // ✅ Thêm categoryId
+      search?: string;
+      supplierId?: string;
+      isFeatured?: boolean; // ✅ Thêm isFeatured
+      type?: string; // ✅ Thêm type
+      minPrice?: number; // ✅ Thêm minPrice
+      maxPrice?: number; // ✅ Thêm maxPrice
+      tags?: string[]; // ✅ Thêm tags
+    }
+  ): Promise<{ success: boolean; message: string; products: SupplierProductSellerViewListItemDto[]; total: number; page: number; limit: number; totalPages: number }> {
     // Filter for visible products: APPROVED + PUBLISHED + isActive = true + isSuspend = false
     const baseFilters: GetSupplierProductsFilters = { 
       approvalStatus: ApprovalStatus.APPROVED,
@@ -22,9 +36,20 @@ export class ListSupplierProductSellerViewService {
       isActive: true,
       isSuspend: false  // Exclude suspended products
     };
-    if (filters?.categoryName) baseFilters.categoryName = filters.categoryName;
+    
+    // ✅ FIXED: Map tất cả filters từ parameter vào baseFilters
+    if (filters?.categoryId) {
+      baseFilters.categoryId = filters.categoryId;
+    } else if (filters?.categoryName) {
+      baseFilters.categoryName = filters.categoryName;
+    }
     if (filters?.search) baseFilters.search = filters.search;
     if (filters?.supplierId) baseFilters.supplierId = filters.supplierId;
+    if (filters?.isFeatured !== undefined) baseFilters.isFeatured = filters.isFeatured;
+    if (filters?.type) baseFilters.type = filters.type as any; // Cast to ProductType enum
+    if (filters?.minPrice !== undefined) baseFilters.minPrice = filters.minPrice;
+    if (filters?.maxPrice !== undefined) baseFilters.maxPrice = filters.maxPrice;
+    if (filters?.tags && filters.tags.length > 0) baseFilters.tags = filters.tags;
 
     const { products, total, totalPages } = await this.supplierProductRepository.findWithPagination(page, limit, baseFilters);
 

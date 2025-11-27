@@ -11,13 +11,15 @@ import { SupplierProductMapper } from '../mappers/supplier-product.mapper';
 import { SupplierProductAlreadyExistsException, SupplierProductValidationException, SupplierProductBusinessRuleException } from '../exceptions/supplier-product.exceptions';
 import { SupplierProductFactoryService } from './supplier-product-factory.service';
 import { SupplierProductComputedPropertiesService } from './supplier-product-computed-properties.service';
+import { CategoryValidationService } from './category-validation.service';
 
 @Injectable()
 export class CreateSupplierProductService {
   constructor(
     private readonly supplierProductRepository: SupplierProductRepository,
     private readonly supplierProductFactoryService: SupplierProductFactoryService,
-    private readonly computedPropertiesService: SupplierProductComputedPropertiesService
+    private readonly computedPropertiesService: SupplierProductComputedPropertiesService,
+    private readonly categoryValidationService: CategoryValidationService
   ) {}
 
   async execute(request: CreateSupplierProductRequest): Promise<SupplierProductResponseDto> {
@@ -31,7 +33,12 @@ export class CreateSupplierProductService {
         throw new SupplierProductAlreadyExistsException(request.sku);
       }
 
-      // 3. Pre-generate IDs
+      // 3. ✅ Validate category exists in CategoryService
+      const categoryInfo = await this.categoryValidationService.getCategoryInfo(
+        request.categoryId || request.categoryName
+      );
+
+      // 4. Pre-generate IDs
       const productId = this.generateProductId();
 
       // 4. Create value objects (domain validation)
@@ -78,7 +85,7 @@ export class CreateSupplierProductService {
         request.description,
         request.shortDescription,
         request.sku,
-        request.categoryName,
+        categoryInfo.name,  // Use validated category name
         price,  // ✅ Value Object
         inventory,  // ✅ Value Object
         specifications,  // ✅ Value Object
@@ -90,7 +97,8 @@ export class CreateSupplierProductService {
         request.dimensions,
         request.seoData,
         images,
-        [] // reviews - empty for new product
+        [], // reviews - empty for new product
+        categoryInfo.id   // Use validated category ID (optional, at the end)
       );
 
       // 7. Save product

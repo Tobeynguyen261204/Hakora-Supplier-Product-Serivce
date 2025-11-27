@@ -12,6 +12,7 @@ import { ProductType } from '../enums/product-type.enum';
 import { SupplierProductOrm } from '../entities/supplier-product.entity';
 import { SupplierProductFactoryService } from './supplier-product-factory.service';
 import { SupplierProductComputedPropertiesService } from './supplier-product-computed-properties.service';
+import { CategoryValidationService } from './category-validation.service';
 
 
 @Injectable()
@@ -19,7 +20,8 @@ export class UpdateSupplierProductService {
   constructor(
     private readonly supplierProductRepository: SupplierProductRepository,
     private readonly supplierProductFactoryService: SupplierProductFactoryService,
-    private readonly computedPropertiesService: SupplierProductComputedPropertiesService
+    private readonly computedPropertiesService: SupplierProductComputedPropertiesService,
+    private readonly categoryValidationService: CategoryValidationService
   ) {}
 
   async execute(request: UpdateSupplierProductRequest): Promise<{ success: boolean; message: string; data?: SupplierProductResponseDto }> {
@@ -132,10 +134,24 @@ export class UpdateSupplierProductService {
         ? request.sku.trim()
         : existing.sku;
       
-      // Validate categoryName
-      updated.categoryName = (request.categoryName && typeof request.categoryName === 'string' && request.categoryName.trim().length > 0)
-        ? request.categoryName.trim()
-        : existing.categoryName;
+      // ✅ Validate categoryName if provided - check with CategoryService
+      if (request.categoryName && typeof request.categoryName === 'string' && request.categoryName.trim().length > 0) {
+        try {
+          const categoryInfo = await this.categoryValidationService.getCategoryInfo(
+            request.categoryId || request.categoryName.trim()
+          );
+          updated.categoryName = categoryInfo.name;
+          updated.categoryId = categoryInfo.id;
+        } catch (error) {
+          // If category validation fails, keep existing category
+          console.warn(`[UpdateSupplierProductService] Category validation failed, keeping existing category:`, error);
+          updated.categoryName = existing.categoryName;
+          updated.categoryId = existing.categoryId;
+        }
+      } else {
+        updated.categoryName = existing.categoryName;
+        updated.categoryId = existing.categoryId;
+      }
       
       console.log('[UpdateSupplierProductService] After field validation:', {
         name: updated.name,

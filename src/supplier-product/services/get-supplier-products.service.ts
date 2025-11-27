@@ -13,6 +13,7 @@ export interface GetSupplierProductsFilters {
   approvalStatus?: ApprovalStatus;
   supplierId?: string;
   categoryName?: string;
+  categoryId?: string; // ✅ FIXED: Thêm categoryId để filter chính xác bằng UUID
   type?: ProductType;
   minPrice?: number;
   maxPrice?: number;

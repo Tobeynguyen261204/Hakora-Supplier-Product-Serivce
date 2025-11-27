@@ -45,7 +45,8 @@ export class SupplierProductFactoryService {
     dimensions: CreateSupplierProductRequest['dimensions'],
     seoData: CreateSupplierProductRequest['seoData'],
     images: ProductImageOrm[] = [],
-    reviews: ProductReviewOrm[] = []
+    reviews: ProductReviewOrm[] = [],
+    categoryId?: string  // ✅ Add optional categoryId (moved to end after all required params)
   ): SupplierProductOrm {
     const product = new SupplierProductOrm();
     
@@ -57,6 +58,7 @@ export class SupplierProductFactoryService {
     product.shortDescription = shortDescription;
     product.sku = sku;
     product.categoryName = categoryName;
+    product.categoryId = categoryId;
     
     // ✅ Convert Value Objects to JSONB format
     product.price = {
@@ -144,7 +146,8 @@ export class SupplierProductFactoryService {
       request.dimensions,
       request.seoData,
       images,
-      reviews
+      reviews,
+      request.categoryId // Pass categoryId if provided (optional, at the end)
     );
   }
   
