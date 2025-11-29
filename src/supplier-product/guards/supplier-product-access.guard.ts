@@ -57,6 +57,7 @@ export class SupplierProductAccessGuard implements CanActivate {
     // API Gateway truyền metadata dạng: { userId: '...', role: 'user' }
     let userId = data.userId;
     let supplierId = data.supplierId;
+    let userRole: string | undefined = undefined;
 
     if (!userId && !supplierId && metadata) {
       try {
@@ -67,16 +68,16 @@ export class SupplierProductAccessGuard implements CanActivate {
           const userIdArray = metadataObj.get('userid');
           const userRoleArray = metadataObj.get('userrole');
           userId = userIdArray?.[0] ? String(userIdArray[0]) : undefined;
-          const role = userRoleArray?.[0] ? String(userRoleArray[0]).toLowerCase() : undefined;
+          userRole = userRoleArray?.[0] ? String(userRoleArray[0]).toLowerCase() : undefined;
           
           // Nếu role là 'supplier' thì dùng userId làm supplierId
-          if (userId && role && (role === 'supplier' || role.includes('supplier'))) {
+          if (userId && userRole && (userRole === 'supplier' || userRole.includes('supplier'))) {
             supplierId = userId;
           }
           
           console.log('- 📦 Extracted from gRPC metadata:');
           console.log('  - userId:', userId);
-          console.log('  - role:', role);
+          console.log('  - role:', userRole);
           console.log('  - supplierId:', supplierId);
         }
       } catch (error) {
@@ -85,6 +86,7 @@ export class SupplierProductAccessGuard implements CanActivate {
     }
 
     console.log('- Final userId:', userId);
+    console.log('- Final userRole:', userRole);
     console.log('- Final supplierId:', supplierId);
 
     // Require authentication: at least userId or supplierId must be present
@@ -98,17 +100,23 @@ export class SupplierProductAccessGuard implements CanActivate {
     console.log('- ✅ Authentication passed');
 
     // 🔒 SECURITY: Validate supplierId for supplier-scoped endpoints
+    // ADMIN role có thể bypass supplier scope check (full access)
+    const isAdmin = userRole && (userRole === 'admin' || userRole.includes('admin'));
+    
     const requiresSupplierScope = this.checkIfRequiresSupplierScope(context);
     if (requiresSupplierScope && !supplierId) {
-      console.error('❌ SECURITY VIOLATION: No supplierId provided for supplier-scoped endpoint');
-      console.error('- Method:', context.getHandler().name);
-      console.error('- This prevents unauthorized access to supplier-specific data');
-      throw new UnauthorizedException(
-        'Supplier ID is required for this operation. Please ensure proper authentication headers are provided.'
-      );
-    }
-
-    if (requiresSupplierScope) {
+      // Allow ADMIN to bypass supplier scope check
+      if (isAdmin) {
+        console.log('- ✅ ADMIN role detected, bypassing supplier scope validation');
+      } else {
+        console.error('❌ SECURITY VIOLATION: No supplierId provided for supplier-scoped endpoint');
+        console.error('- Method:', context.getHandler().name);
+        console.error('- This prevents unauthorized access to supplier-specific data');
+        throw new UnauthorizedException(
+          'Supplier ID is required for this operation. Please ensure proper authentication headers are provided.'
+        );
+      }
+    } else if (requiresSupplierScope) {
       console.log('- ✅ Supplier scope validation passed, supplierId:', supplierId);
     }
 
