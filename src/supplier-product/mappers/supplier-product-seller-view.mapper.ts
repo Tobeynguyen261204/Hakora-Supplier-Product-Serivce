@@ -72,6 +72,7 @@ export class SupplierProductSellerViewMapper {
       sku: product.sku,
       price,
       categoryName: product.categoryName || null,
+      categoryId: product.categoryId || null, // ✅ THÊM: categoryId
       imageUrl,
       isFeatured: product.isFeatured === true,
       images,
@@ -116,6 +117,7 @@ export class SupplierProductSellerViewMapper {
       shortDescription: product.shortDescription,
       price,
       categoryName: product.categoryName || null,
+      categoryId: product.categoryId || null, // ✅ THÊM: categoryId
       imageUrl,
       isFeatured: product.isFeatured === true,
       createdAt: computedPropsService.formatDate(product.createdAt),

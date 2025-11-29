@@ -6,6 +6,7 @@ export interface SupplierProductSellerViewListItemDto {
   shortDescription?: string;
   price?: ProductPriceResponseDto;
   categoryName?: string | null;
+  categoryId?: string | null; // ✅ THÊM: categoryId
   imageUrl?: string | null;
   isFeatured?: boolean;
   createdAt?: string;

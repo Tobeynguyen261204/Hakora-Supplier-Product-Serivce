@@ -282,6 +282,7 @@ message SellerProductSellerViewItem {
   string shortDescription = 3;
   SellerViewPrice price = 4;
   string categoryName = 5;
+  string categoryId = 10; // ✅ THÊM: categoryId
   string imageUrl = 6;
   bool isFeatured = 7;
   string createdAt = 8;
@@ -299,6 +300,7 @@ message SellerProductSellerViewDetail {
   string shortDescription = 4;
   SellerViewPrice price = 5;
   string categoryName = 6;
+  string categoryId = 21; // ✅ THÊM: categoryId
   repeated ProductImage images = 7;
   repeated ProductReview reviews = 8;
   ReviewSummary reviewSummary = 9;
