@@ -363,6 +363,71 @@ message ProductExistsRequest {
 message ProductExistsResponse {
   bool exists = 1;
 }
+
+// =============== Shipping Methods ===============
+message ShippingMethod {
+  string id = 1;
+  string supplierId = 2;
+  string name = 3;
+  string description = 4;
+  double price = 5; // Fixed price in VND
+  string estimatedDays = 6; // e.g., "2-3 days"
+  bool isActive = 7;
+  string createdAt = 8;
+  string updatedAt = 9;
+}
+
+message CreateShippingMethodRequest {
+  string supplierId = 1;
+  string name = 2;
+  string description = 3;
+  double price = 4;
+  string estimatedDays = 5;
+  bool isActive = 6;
+}
+
+message UpdateShippingMethodRequest {
+  string id = 1;
+  string supplierId = 2; // For scope validation
+  string name = 3;
+  string description = 4;
+  double price = 5;
+  string estimatedDays = 6;
+  bool isActive = 7;
+}
+
+message GetShippingMethodRequest {
+  string id = 1;
+}
+
+message GetShippingMethodsRequest {
+  string supplierId = 1;
+  bool isActive = 2; // Optional: filter by active status
+}
+
+message DeleteShippingMethodRequest {
+  string id = 1;
+  string supplierId = 2; // For scope validation
+}
+
+message ToggleShippingMethodRequest {
+  string id = 1;
+  string supplierId = 2; // For scope validation
+  bool isActive = 3;
+}
+
+message ShippingMethodResponse {
+  bool success = 1;
+  string message = 2;
+  ShippingMethod data = 3;
+}
+
+message ShippingMethodListResponse {
+  bool success = 1;
+  string message = 2;
+  repeated ShippingMethod data = 3;
+}
+
 // Service definition
 service SupplierProductService {
   // Public/Admin APIs
@@ -396,6 +461,14 @@ service SupplierProductService {
   rpc SupplierHideProduct(HideSupplierProductRequest) returns (ProductResponse);
   rpc SupplierUnhideProduct(UnhideSupplierProductRequest) returns (ProductResponse);
   rpc SupplierGetStats(GetSupplierProductStatsRequest) returns (SupplierProductStatsResponse);
+  
+  // =============== Shipping Methods APIs ===============
+  rpc CreateShippingMethod(CreateShippingMethodRequest) returns (ShippingMethodResponse);
+  rpc UpdateShippingMethod(UpdateShippingMethodRequest) returns (ShippingMethodResponse);
+  rpc GetShippingMethod(GetShippingMethodRequest) returns (ShippingMethodResponse);
+  rpc GetShippingMethods(GetShippingMethodsRequest) returns (ShippingMethodListResponse);
+  rpc DeleteShippingMethod(DeleteShippingMethodRequest) returns (EmptyResponse);
+  rpc ToggleShippingMethod(ToggleShippingMethodRequest) returns (ShippingMethodResponse);
 }
 
 

@@ -24,6 +24,12 @@ import { GetSupplierProductSellerViewService } from './services/get-supplier-pro
 import { UnsuspendSupplierProductService } from './services/unsuspend-supplier-product.service';
 import { GetSupplierProductStatsService } from './services/get-supplier-product-stats.service';
 import { GetSupplierProductsByIdsService } from './services/get-supplier-products-by-ids.service';
+import { CreateShippingMethodService } from './services/create-shipping-method.service';
+import { GetShippingMethodsService } from './services/get-shipping-methods.service';
+import { GetShippingMethodService } from './services/get-shipping-method.service';
+import { UpdateShippingMethodService } from './services/update-shipping-method.service';
+import { DeleteShippingMethodService } from './services/delete-shipping-method.service';
+import { ToggleShippingMethodService } from './services/toggle-shipping-method.service';
 import { SupplierProductFactoryService } from './services/supplier-product-factory.service';
 import { SupplierProductBusinessService } from './services/supplier-product-business.service';
 import { SupplierProductComputedPropertiesService } from './services/supplier-product-computed-properties.service';
@@ -35,11 +41,13 @@ import { GrpcResponseMapper } from './mappers/grpc-response.mapper';
 
 // Repositories
 import { SupplierProductRepository } from './repositories/supplier-product.repository';
+import { ShippingMethodRepository } from './repositories/shipping-method.repository';
 
 // Entities
 import { SupplierProductOrm } from './entities/supplier-product.entity';
 import { ProductImageOrm } from './entities/product-image.entity';
 import { ProductReviewOrm } from './entities/product-review.entity';
+import { ShippingMethodOrm } from './entities/shipping-method.entity';
 
 // Infrastructure
 import { SupplierProductExceptionFilter } from './filters/supplier-product-exception.filter';
@@ -79,7 +87,8 @@ import { SUPPLIER_PRODUCT_CONSTANTS } from './constants/supplier-product.constan
     TypeOrmModule.forFeature([
       SupplierProductOrm,
       ProductImageOrm,
-      ProductReviewOrm
+      ProductReviewOrm,
+      ShippingMethodOrm
     ])
   ],
   controllers: [SupplierProductController],
@@ -110,8 +119,9 @@ import { SUPPLIER_PRODUCT_CONSTANTS } from './constants/supplier-product.constan
       useClass: SupplierProductValidationPipe,
     },
     
-    // Repository
+    // Repositories
     SupplierProductRepository,
+    ShippingMethodRepository,
     
     // Business Services (New Architecture)
     SupplierProductFactoryService,
@@ -139,6 +149,13 @@ import { SUPPLIER_PRODUCT_CONSTANTS } from './constants/supplier-product.constan
     GetSupplierProductStatsService,
     UnsuspendSupplierProductService,
     GetSupplierProductsByIdsService,
+    // Shipping Methods Services
+    CreateShippingMethodService,
+    GetShippingMethodsService,
+    GetShippingMethodService,
+    UpdateShippingMethodService,
+    DeleteShippingMethodService,
+    ToggleShippingMethodService,
   ],
   exports: [
     // Repository (for other modules)
@@ -164,6 +181,13 @@ import { SUPPLIER_PRODUCT_CONSTANTS } from './constants/supplier-product.constan
     GetSupplierProductStatsService,
     UnsuspendSupplierProductService,
     GetSupplierProductsByIdsService,
+    // Shipping Methods Services
+    CreateShippingMethodService,
+    GetShippingMethodsService,
+    GetShippingMethodService,
+    UpdateShippingMethodService,
+    DeleteShippingMethodService,
+    ToggleShippingMethodService,
   ]
 })
 export class SupplierProductModule {}

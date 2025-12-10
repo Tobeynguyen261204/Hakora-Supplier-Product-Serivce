@@ -2,6 +2,7 @@ import { DataSourceOptions } from 'typeorm';
 import { SupplierProductOrm } from '../entities/supplier-product.entity';
 import { ProductImageOrm } from '../entities/product-image.entity';
 import { ProductReviewOrm } from '../entities/product-review.entity';
+import { ShippingMethodOrm } from '../entities/shipping-method.entity';
 
 /**
  * Database configuration chung cho cả NestJS app và TypeORM CLI
@@ -15,7 +16,7 @@ export const getDatabaseConfig = (): DataSourceOptions => {
     username: process.env.DATABASE_USERNAME || 'postgres',
     password: process.env.DATABASE_PASSWORD || '',
     database: process.env.DATABASE_NAME || 'SupplierProductService',
-    entities: [SupplierProductOrm, ProductImageOrm, ProductReviewOrm],
+    entities: [SupplierProductOrm, ProductImageOrm, ProductReviewOrm, ShippingMethodOrm],
     synchronize: false,
     migrations: [__dirname + '/migrations/*{.ts,.js}'],
     logging: process.env.NODE_ENV === 'development',

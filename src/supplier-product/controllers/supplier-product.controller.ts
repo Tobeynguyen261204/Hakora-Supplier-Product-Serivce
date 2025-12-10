@@ -15,6 +15,12 @@ import { GetSupplierProductSellerViewService } from '../services/get-supplier-pr
 import { UnsuspendSupplierProductService } from '../services/unsuspend-supplier-product.service';
 import { GetSupplierProductStatsService } from '../services/get-supplier-product-stats.service';
 import { GetSupplierProductsByIdsService } from '../services/get-supplier-products-by-ids.service';
+import { CreateShippingMethodService } from '../services/create-shipping-method.service';
+import { GetShippingMethodsService } from '../services/get-shipping-methods.service';
+import { GetShippingMethodService } from '../services/get-shipping-method.service';
+import { UpdateShippingMethodService } from '../services/update-shipping-method.service';
+import { DeleteShippingMethodService } from '../services/delete-shipping-method.service';
+import { ToggleShippingMethodService } from '../services/toggle-shipping-method.service';
 import { GrpcResponseMapper } from '../mappers/grpc-response.mapper';
 import { CreateSupplierProductRequest } from '../dto/create-supplier-product-request.dto';
 import { UpdateSupplierProductRequest } from '../dto/update-supplier-product-request.dto';
@@ -56,21 +62,6 @@ interface GrpcResponse {
   };
 }
 
-/**
- * ✅ CLEAN CONTROLLER - Only handles HTTP/gRPC routing
- * 
- * Responsibilities:
- * - Route gRPC calls to appropriate services
- * - Delegate all business logic to services
- * - Delegate all validation to pipes/DTOs (Pipe tự động transform & validate)
- * - Delegate all mapping to dedicated mappers (chỉ cho response mapping)
- * - Delegate all error handling to ExceptionFilter (APP_FILTER)
- * 
- * @note 
- * - Không cần try-catch ở đây vì ExceptionFilter sẽ tự động catch và xử lý
- * - Tất cả methods đều dùng DTO classes → Pipe tự động transform và validate
- * - Chỉ một số endpoint cụ thể được đánh dấu @Public(), còn lại cần authentication
- */
 @Controller()
 export class SupplierProductController {
   constructor(
@@ -89,6 +80,12 @@ export class SupplierProductController {
     private readonly getSupplierProductStatsService: GetSupplierProductStatsService,
     private readonly unsuspendSupplierProductService: UnsuspendSupplierProductService,
     private readonly getSupplierProductsByIdsService: GetSupplierProductsByIdsService,
+    private readonly createShippingMethodService: CreateShippingMethodService,
+    private readonly getShippingMethodsService: GetShippingMethodsService,
+    private readonly getShippingMethodService: GetShippingMethodService,
+    private readonly updateShippingMethodService: UpdateShippingMethodService,
+    private readonly deleteShippingMethodService: DeleteShippingMethodService,
+    private readonly toggleShippingMethodService: ToggleShippingMethodService,
     private readonly grpcResponseMapper: GrpcResponseMapper,
   ) {}
 
@@ -384,8 +381,6 @@ export class SupplierProductController {
       fullData: JSON.stringify(data, null, 2),
     });
     
-    // ✅ FIXED: DTO có cả categoryId và categoryName
-    // Ưu tiên dùng categoryId để filter chính xác
     const page = data.page !== undefined && data.page !== null ? Number(data.page) : 1;
     const limit = data.limit !== undefined && data.limit !== null ? Number(data.limit) : 10;
     
@@ -393,8 +388,6 @@ export class SupplierProductController {
       search: data.search,
       supplierId: data.supplierId,
     };
-    
-    // ✅ FIXED: Ưu tiên categoryId, fallback sang categoryName
     if (data.categoryId) {
       filters.categoryId = data.categoryId;
     } else if (data.categoryName) {
@@ -443,11 +436,74 @@ export class SupplierProductController {
   @Public()
   @GrpcMethod('SupplierProductService', 'getSupplierProductsByIds')
   async getSupplierProductsByIds(data: GetSupplierProductsByIdsRequest): Promise<GrpcResponse> {
-    // Pipe tự động transform và validate data → GetSupplierProductsByIdsRequest instance
-    // supplierId đã được inject từ SupplierContextInterceptor (từ headers x-user-id hoặc x-supplier-id)
     const supplierId = data.supplierId;
     const products = await this.getSupplierProductsByIdsService.execute(data.productIds, supplierId);
     return this.grpcResponseMapper.toProductsResponse('Products retrieved successfully', products);
+  }
+
+  // =============== Shipping Methods APIs ===============
+  @GrpcMethod('SupplierProductService', 'CreateShippingMethod')
+  async createShippingMethod(data: any): Promise<GrpcResponse> {
+    const result = await this.createShippingMethodService.execute({
+      supplierId: data.supplierId,
+      name: data.name,
+      description: data.description,
+      price: data.price,
+      estimatedDays: data.estimatedDays,
+      isActive: data.isActive !== undefined ? data.isActive : true,
+    });
+    return this.grpcResponseMapper.toSuccessResponse('Shipping method created successfully', result);
+  }
+
+  @GrpcMethod('SupplierProductService', 'GetShippingMethod')
+  async getShippingMethod(data: any): Promise<GrpcResponse> {
+    const result = await this.getShippingMethodService.execute(data.id);
+    return this.grpcResponseMapper.toSuccessResponse('Shipping method retrieved successfully', result);
+  }
+
+  @GrpcMethod('SupplierProductService', 'GetShippingMethods')
+  async getShippingMethods(data: any): Promise<GrpcResponse> {
+    const result = await this.getShippingMethodsService.execute(
+      data.supplierId,
+      data.isActive !== undefined ? data.isActive : undefined
+    );
+    return {
+      success: true,
+      message: 'Shipping methods retrieved successfully',
+      data: result,
+    };
+  }
+
+  @GrpcMethod('SupplierProductService', 'UpdateShippingMethod')
+  async updateShippingMethod(data: any): Promise<GrpcResponse> {
+    const result = await this.updateShippingMethodService.execute(
+      data.id,
+      data.supplierId,
+      {
+        name: data.name,
+        description: data.description,
+        price: data.price,
+        estimatedDays: data.estimatedDays,
+        isActive: data.isActive,
+      }
+    );
+    return this.grpcResponseMapper.toSuccessResponse('Shipping method updated successfully', result);
+  }
+
+  @GrpcMethod('SupplierProductService', 'DeleteShippingMethod')
+  async deleteShippingMethod(data: any): Promise<GrpcResponse> {
+    await this.deleteShippingMethodService.execute(data.id, data.supplierId);
+    return this.grpcResponseMapper.toSuccessResponse('Shipping method deleted successfully', undefined);
+  }
+
+  @GrpcMethod('SupplierProductService', 'ToggleShippingMethod')
+  async toggleShippingMethod(data: any): Promise<GrpcResponse> {
+    const result = await this.toggleShippingMethodService.execute(
+      data.id,
+      data.supplierId,
+      data.isActive
+    );
+    return this.grpcResponseMapper.toSuccessResponse('Shipping method toggled successfully', result);
   }
 
   @Public()

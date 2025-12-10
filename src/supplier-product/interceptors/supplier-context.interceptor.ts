@@ -48,7 +48,15 @@ export class SupplierContextInterceptor implements NestInterceptor {
         'suspendSupplierProduct',
         'unsuspendSupplierProduct'
       ];
+      
+      // Methods that use supplierId from request data, NOT from metadata
+      // These are typically public methods called by customers
+      const methodsUsingRequestSupplierId = [
+        'getShippingMethods', // Customer calls this with supplierId in request
+      ];
+      
       const requiresId = methodsRequiringId.includes(methodName);
+      const usesRequestSupplierId = methodsUsingRequestSupplierId.includes(methodName);
       
       // CRITICAL: Nếu data bị corrupt hoàn toàn (id không hợp lệ), không thể clean
       // Trong trường hợp này, có thể do proto definition không match hoặc proto files chưa được reload
@@ -175,15 +183,23 @@ export class SupplierContextInterceptor implements NestInterceptor {
           data.userRole = String(userRole);
         }
         // supplierId chỉ inject cho methods cần nó (update, delete, etc.)
-        if (supplierId && requiresId) {
+        // KHÔNG inject cho methods sử dụng supplierId từ request data
+        if (supplierId && requiresId && !usesRequestSupplierId) {
           data.supplierId = supplierId;
           console.log('  - ✅ Injected supplierId from metadata:', supplierId);
         }
+        // Với methods sử dụng supplierId từ request, giữ nguyên supplierId từ data
+        if (usesRequestSupplierId && data.supplierId) {
+          console.log('  - ✅ Keeping supplierId from request data:', data.supplierId);
+        }
       } else {
         // Cho methods cần id (update, delete, etc.), luôn inject supplierId
-        if (supplierId) {
+        // Trừ khi method sử dụng supplierId từ request data
+        if (supplierId && !usesRequestSupplierId) {
           data.supplierId = supplierId;
           console.log('  - ✅ Injected supplierId from metadata:', supplierId);
+        } else if (usesRequestSupplierId && data.supplierId) {
+          console.log('  - ✅ Keeping supplierId from request data:', data.supplierId);
         }
       }
 
