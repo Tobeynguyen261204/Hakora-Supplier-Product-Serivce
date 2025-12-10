@@ -257,7 +257,9 @@ export class SupplierContextInterceptor implements NestInterceptor {
     }
 
     // Clean string fields - remove binary data
-    ['name', 'description', 'shortDescription', 'sku', 'categoryName'].forEach((field) => {
+    // CRITICAL: Thêm các field cho approval/suspend actions
+    ['name', 'description', 'shortDescription', 'sku', 'categoryName', 
+     'reason', 'suspendedBy', 'rejectedBy', 'approvedBy', 'hiddenBy', 'unhiddenBy', 'unsuspendedBy'].forEach((field) => {
       if (data[field] !== undefined && data[field] !== null) {
         if (typeof data[field] === 'string') {
           // Remove non-printable characters (giữ lại \n, \r, \t)
@@ -348,8 +350,8 @@ export class SupplierContextInterceptor implements NestInterceptor {
         .filter((tag: string) => tag.length > 0 && tag.length < 1000);
     }
 
-    // Copy các field khác
-    ['inventory', 'dimensions', 'seoData', 'images', 'weight', 'isActive', 'isFeatured'].forEach((field) => {
+    // Copy các field khác (bao gồm suspensionDuration cho suspend action)
+    ['inventory', 'dimensions', 'seoData', 'images', 'weight', 'isActive', 'isFeatured', 'suspensionDuration'].forEach((field) => {
       if (data[field] !== undefined) {
         cleaned[field] = data[field];
       }

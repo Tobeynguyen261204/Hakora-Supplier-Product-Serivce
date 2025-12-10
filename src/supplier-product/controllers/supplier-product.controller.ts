@@ -338,6 +338,19 @@ export class SupplierProductController {
 
   @GrpcMethod('SupplierProductService', 'SuspendSupplierProduct')
   async suspendSupplierProduct(data: SuspendSupplierProductRequest): Promise<GrpcResponse> {
+    // Log raw data nhận được từ gRPC (trước khi pipe transform)
+    console.log('='.repeat(80));
+    console.log('[SupplierProductController] suspendSupplierProduct - Raw data received:');
+    console.log('[SupplierProductController] Data type:', typeof data);
+    console.log('[SupplierProductController] Data keys:', data ? Object.keys(data) : 'null');
+    console.log('[SupplierProductController] Data:', JSON.stringify(data, null, 2));
+    console.log('[SupplierProductController] data.id:', data?.id, 'type:', typeof data?.id);
+    console.log('[SupplierProductController] data.reason:', data?.reason, 'type:', typeof data?.reason);
+    console.log('[SupplierProductController] data.suspendedBy:', data?.suspendedBy, 'type:', typeof data?.suspendedBy);
+    console.log('[SupplierProductController] data.suspensionDuration:', data?.suspensionDuration, 'type:', typeof data?.suspensionDuration);
+    console.log('[SupplierProductController] data.supplierId:', data?.supplierId, 'type:', typeof data?.supplierId);
+    console.log('='.repeat(80));
+    
     // Pipe tự động transform và validate data → SuspendSupplierProductRequest instance
     // supplierId đã được inject từ SupplierContextInterceptor (từ headers x-user-id hoặc x-supplier-id)
     const supplierId = data.supplierId;
