@@ -22,8 +22,18 @@ export class SupplierProductValidationPipe implements PipeTransform<any> {
     // Log raw value trước khi transform để debug
     console.log('[SupplierProductValidationPipe] ========== TRANSFORM START ==========');
     console.log('[SupplierProductValidationPipe] Metatype:', metatype.name);
+    console.log('[SupplierProductValidationPipe] Raw value type:', typeof value);
     console.log('[SupplierProductValidationPipe] Raw value:', JSON.stringify(value, null, 2));
     console.log('[SupplierProductValidationPipe] Raw value keys:', value ? Object.keys(value) : []);
+    
+    // Log chi tiết cho SuspendSupplierProductRequest
+    if (metatype.name === 'SuspendSupplierProductRequest') {
+      console.log('[SupplierProductValidationPipe] SuspendSupplierProductRequest - Raw value details:');
+      console.log('[SupplierProductValidationPipe] - id:', value?.id, 'type:', typeof value?.id);
+      console.log('[SupplierProductValidationPipe] - reason:', value?.reason, 'type:', typeof value?.reason);
+      console.log('[SupplierProductValidationPipe] - suspendedBy:', value?.suspendedBy, 'type:', typeof value?.suspendedBy);
+      console.log('[SupplierProductValidationPipe] - suspensionDuration:', value?.suspensionDuration, 'type:', typeof value?.suspensionDuration);
+    }
     console.log('[SupplierProductValidationPipe] Raw value check:', {
       hasPage: !!value?.page,
       page: value?.page,
