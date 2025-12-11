@@ -169,6 +169,10 @@ export class SupplierProductController {
       specifications: data?.specifications,
       hasSupplierId: !!data?.supplierId,
       supplierId: data?.supplierId,
+      hasCategoryName: !!data?.categoryName,
+      categoryName: data?.categoryName,
+      hasCategoryId: !!data?.categoryId,
+      categoryId: data?.categoryId,
     });
     
     // Clean và validate data trước khi xử lý
@@ -179,6 +183,10 @@ export class SupplierProductController {
       keys: Object.keys(cleanedData),
       hasPrice: !!cleanedData.price,
       price: cleanedData.price,
+      hasCategoryName: 'categoryName' in cleanedData,
+      categoryName: cleanedData.categoryName,
+      hasCategoryId: 'categoryId' in cleanedData,
+      categoryId: cleanedData.categoryId,
     });
     console.log('[SupplierProductController] Cleaned data (JSON):', JSON.stringify(cleanedData, null, 2));
     console.log('='.repeat(80));

@@ -64,6 +64,7 @@ import { SUPPLIER_PRODUCT_CONSTANTS } from './constants/supplier-product.constan
   imports: [
     // gRPC Client for API Gateway (CategoryService)
     // ✅ FIXED: Now calling API Gateway instead of directly calling category-service
+    // ✅ FIXED: Port should match API Gateway's gRPC server port (50070)
     ClientsModule.register([
       {
         name: 'API_GATEWAY_CATEGORY_SERVICE',
@@ -71,7 +72,7 @@ import { SUPPLIER_PRODUCT_CONSTANTS } from './constants/supplier-product.constan
         options: {
           package: 'category',
           protoPath: join(__dirname, '..', '..', 'proto', 'category.proto'),
-          url: process.env.API_GATEWAY_GRPC_URL || '0.0.0.0:50060',
+          url: process.env.API_GATEWAY_GRPC_URL || '0.0.0.0:50070', // ✅ Changed from 50060 to 50070 to match API Gateway
           loader: {
             keepCase: true,
             longs: String,

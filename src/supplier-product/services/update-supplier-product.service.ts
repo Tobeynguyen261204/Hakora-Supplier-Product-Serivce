@@ -34,6 +34,8 @@ export class UpdateSupplierProductService {
         description: request?.description?.substring(0, 50),
         price: request?.price,
         supplierId: request?.supplierId,
+        categoryName: request?.categoryName,
+        categoryId: request?.categoryId,
         keys: request ? Object.keys(request) : [],
       });
       console.log('[UpdateSupplierProductService] Full request (JSON):', JSON.stringify(request, null, 2));
@@ -136,19 +138,36 @@ export class UpdateSupplierProductService {
       
       // ✅ Validate categoryName if provided - check with CategoryService
       if (request.categoryName && typeof request.categoryName === 'string' && request.categoryName.trim().length > 0) {
+        const trimmedCategoryName = request.categoryName.trim();
+        console.log(`[UpdateSupplierProductService] Validating categoryName: "${trimmedCategoryName}"`);
         try {
           const categoryInfo = await this.categoryValidationService.getCategoryInfo(
-            request.categoryId || request.categoryName.trim()
+            request.categoryId || trimmedCategoryName
           );
+          console.log(`[UpdateSupplierProductService] Category validation successful:`, {
+            id: categoryInfo.id,
+            name: categoryInfo.name,
+            requestedName: trimmedCategoryName,
+          });
           updated.categoryName = categoryInfo.name;
           updated.categoryId = categoryInfo.id;
         } catch (error) {
           // If category validation fails, keep existing category
-          console.warn(`[UpdateSupplierProductService] Category validation failed, keeping existing category:`, error);
+          console.error(`[UpdateSupplierProductService] Category validation failed for "${trimmedCategoryName}":`, error);
+          console.warn(`[UpdateSupplierProductService] Keeping existing category:`, {
+            existingCategoryName: existing.categoryName,
+            existingCategoryId: existing.categoryId,
+          });
           updated.categoryName = existing.categoryName;
           updated.categoryId = existing.categoryId;
         }
       } else {
+        console.log(`[UpdateSupplierProductService] No categoryName provided in request, keeping existing category:`, {
+          existingCategoryName: existing.categoryName,
+          existingCategoryId: existing.categoryId,
+          receivedCategoryName: request?.categoryName,
+          receivedCategoryId: request?.categoryId,
+        });
         updated.categoryName = existing.categoryName;
         updated.categoryId = existing.categoryId;
       }
@@ -158,6 +177,7 @@ export class UpdateSupplierProductService {
         description: updated.description?.substring(0, 50),
         sku: updated.sku,
         categoryName: updated.categoryName,
+        categoryId: updated.categoryId,
       });
       
       // ✅ Use Value Object business logic when converting to JSONB
