@@ -1,5 +1,4 @@
 # GitHub Actions - Supplier Product Service CI/CD
-# Copy to: supplier-product-service/.github/workflows/deploy.yml
 
 name: Supplier Product Service CI/CD
 
@@ -65,20 +64,33 @@ jobs:
       - name: Setup SSH
         run: |
           mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
           echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/id_rsa
+          sed -i 's/[[:space:]]*$//' ~/.ssh/id_rsa
+          if [ "$(tail -c 1 ~/.ssh/id_rsa)" != "" ]; then
+            echo "" >> ~/.ssh/id_rsa
+          fi
           chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H ${{ secrets.VPS_HOST }} >> ~/.ssh/known_hosts
+          if ! grep -q "BEGIN.*PRIVATE KEY" ~/.ssh/id_rsa; then
+            echo "Warning: Key format may be incorrect"
+          fi
+          ssh-keyscan -t rsa,ecdsa,ed25519 ${{ secrets.VPS_HOST }} >> ~/.ssh/known_hosts 2>&1 || true
+          chmod 644 ~/.ssh/known_hosts
+          ssh -o StrictHostKeyChecking=no -o BatchMode=yes -i ~/.ssh/id_rsa ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} echo "SSH connection successful" || {
+            echo "SSH connection failed!"
+            exit 1
+          }
 
       - name: Deploy
         run: |
-          ssh -o StrictHostKeyChecking=no ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} << 'ENDSSH'
+          ssh -o StrictHostKeyChecking=no -o BatchMode=yes -i ~/.ssh/id_rsa ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} << 'ENDSSH'
             set -e
             cd ${{ secrets.VPS_APP_DIR }}/${{ env.SERVICE_PATH }}
             git fetch origin && git reset --hard origin/main 2>/dev/null || git reset --hard origin/master
             npm install --legacy-peer-deps
             npm run build --if-present || true
-            pm2 restart ${{ env.SERVICE_NAME }} || pm2 start npm --name ${{ env.SERVICE_NAME }} -- run start:dev
+            npm run migration:run --if-present || true
+            pm2 restart ${{ env.SERVICE_NAME }} || pm2 start npm --name ${{ env.SERVICE_NAME }} --cwd $(pwd) -- run start:dev
             pm2 save
             echo "✓ ${{ env.SERVICE_NAME }} deployed!"
           ENDSSH
-
