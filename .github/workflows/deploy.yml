@@ -1,0 +1,84 @@
+# GitHub Actions - Supplier Product Service CI/CD
+# Copy to: supplier-product-service/.github/workflows/deploy.yml
+
+name: Supplier Product Service CI/CD
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: '20'
+  SERVICE_NAME: 'supplier-product-service'
+  SERVICE_PATH: 'TLCN/supplier-product-service'
+
+jobs:
+  ci:
+    name: CI Pipeline
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: hakora_test
+        ports:
+          - 5432:5432
+        options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: --health-cmd "redis-cli ping" --health-interval 10s --health-timeout 5s --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+      - run: npm ci --legacy-peer-deps || npm install --legacy-peer-deps
+      - run: npm run lint --if-present
+        continue-on-error: true
+      - run: npm run build --if-present
+      - run: npm test --if-present
+        continue-on-error: true
+        env:
+          DATABASE_HOST: localhost
+          DATABASE_PORT: 5432
+          DATABASE_USER: postgres
+          DATABASE_PASSWORD: postgres
+          REDIS_HOST: localhost
+          REDIS_PORT: 6379
+          NODE_ENV: test
+
+  deploy:
+    name: Deploy to VPS
+    needs: ci
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    steps:
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.VPS_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Deploy
+        run: |
+          ssh -o StrictHostKeyChecking=no ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} << 'ENDSSH'
+            set -e
+            cd ${{ secrets.VPS_APP_DIR }}/${{ env.SERVICE_PATH }}
+            git fetch origin && git reset --hard origin/main 2>/dev/null || git reset --hard origin/master
+            npm install --legacy-peer-deps
+            npm run build --if-present || true
+            pm2 restart ${{ env.SERVICE_NAME }} || pm2 start npm --name ${{ env.SERVICE_NAME }} -- run start:dev
+            pm2 save
+            echo "✓ ${{ env.SERVICE_NAME }} deployed!"
+          ENDSSH
+
