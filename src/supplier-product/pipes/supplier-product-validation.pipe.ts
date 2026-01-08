@@ -49,9 +49,14 @@ export class SupplierProductValidationPipe implements PipeTransform<any> {
       isFeatured: value?.isFeatured,
     });
 
-    // ✅ CRITICAL: Loại bỏ metadata fields (userId, userRole, supplierId) khỏi data
-    // Các field này được inject bởi interceptor, không phải là phần của request DTO
-    const metadataFields = ['userId', 'userRole', 'supplierId'];
+    // ✅ CRITICAL: Loại bỏ metadata fields (userId, userRole) khỏi data
+    // supplierId: KHÔNG xóa cho CreateSupplierProductRequest vì nó là field bắt buộc trong DTO
+    // Interceptor đã inject supplierId từ metadata, và nó cần có trong DTO để validation pass
+    const isCreateRequest = metatype.name === 'CreateSupplierProductRequest';
+    const metadataFields = ['userId', 'userRole'];
+    
+    
+    
     const valueWithoutMetadata = { ...value };
     metadataFields.forEach(field => {
       if (field in valueWithoutMetadata) {
@@ -59,6 +64,11 @@ export class SupplierProductValidationPipe implements PipeTransform<any> {
         console.log(`[SupplierProductValidationPipe] Removed metadata field: ${field}`);
       }
     });
+    
+    // Log cho create request để debug
+    if (isCreateRequest && 'supplierId' in valueWithoutMetadata) {
+      console.log(`[SupplierProductValidationPipe] Keeping supplierId for CreateSupplierProductRequest: ${valueWithoutMetadata.supplierId}`);
+    }
 
     // ✅ Check nếu sau khi loại bỏ metadata, data trở thành empty object
     // Điều này có thể xảy ra nếu request thực sự không có body (chỉ có metadata)
@@ -111,6 +121,7 @@ export class SupplierProductValidationPipe implements PipeTransform<any> {
     });
     console.log('[SupplierProductValidationPipe] After plainToInstance:', {
       keys: Object.keys(object),
+      supplierId: object?.supplierId, // ✅ ADD: Log supplierId để debug
       page: object?.page,
       limit: object?.limit,
       categoryName: object?.categoryName,
