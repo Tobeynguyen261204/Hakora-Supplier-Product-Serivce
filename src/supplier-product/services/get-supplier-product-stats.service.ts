@@ -1,7 +1,5 @@
 import { Injectable } from '@nestjs/common';
 import { SupplierProductRepository } from '../repositories/supplier-product.repository';
-import { ApprovalStatus } from '../enums/approval-status.enum';
-import { SupplierProductOrm } from '../entities/supplier-product.entity';
 
 @Injectable()
 export class GetSupplierProductStatsService {
@@ -9,35 +7,81 @@ export class GetSupplierProductStatsService {
     private readonly supplierProductRepository: SupplierProductRepository
   ) {}
 
-  async execute(supplierId: string): Promise<{ success: boolean; message: string; data?: { approved: number; pending: number; rejected: number; suspend: number; totalProducts: number; totalStock: number; lowStockAlert: number; outOfStock: number } }> {
-    const products = await this.supplierProductRepository.findBySupplierId(supplierId);
+  /**
+   * Get supplier product statistics using efficient database aggregation
+   * 
+   * ✅ BEST PRACTICE: Uses a single optimized query with conditional aggregation
+   * instead of loading all products into memory. This provides:
+   * - Better performance (especially with large datasets)
+   * - Lower memory usage
+   * - Single database round-trip
+   * - Better scalability
+   * 
+   * @param supplierId - The supplier ID to get stats for
+   * @returns Statistics including approval status counts and inventory metrics
+   */
+  async execute(supplierId: string): Promise<{
+    success: boolean;
+    message: string;
+    data?: {
+      approved: number;
+      pending: number;
+      rejected: number;
+      suspend: number;
+      totalProducts: number;
+      totalStock: number;
+      lowStockAlert: number;
+      outOfStock: number;
+    };
+  }> {
     const LOW_STOCK_THRESHOLD = 5;
-    const getQuantity = (p: SupplierProductOrm): number => {
-      const q = p.inventory.quantity;
-      return typeof q === 'number' && Number.isFinite(q) ? q : 0;
-    };
-    
-    const stats = {
-      // Approval + admin lock
-      approved: products.filter(p => p.approvalStatus === ApprovalStatus.APPROVED).length,
-      pending: products.filter(p => p.approvalStatus === ApprovalStatus.PENDING).length,
-      rejected: products.filter(p => p.approvalStatus === ApprovalStatus.REJECTED).length,
-      suspend: products.filter(p => p.isSuspend === true).length,
-      // Inventory-based KPIs
-      totalProducts: products.length,
-      totalStock: products.reduce((sum, p) => sum + getQuantity(p), 0),
-      lowStockAlert: products.filter(p => {
-        const q = getQuantity(p);
-        return q > 0 && q <= LOW_STOCK_THRESHOLD;
-      }).length,
-      outOfStock: products.filter(p => getQuantity(p) === 0).length
-    };
 
-    return {
-      success: true,
-      message: 'Statistics retrieved successfully',
-      data: stats
-    };
+    console.log('[GetSupplierProductStatsService] Getting stats for supplierId:', supplierId);
+
+    try {
+      // ✅ Use efficient database aggregation instead of loading all products
+      const stats = await this.supplierProductRepository.getAllStatsBySupplierId(
+        supplierId,
+        LOW_STOCK_THRESHOLD
+      );
+
+      console.log('[GetSupplierProductStatsService] Raw stats from repository:', stats);
+
+      const responseData = {
+        approved: stats.approved,
+        pending: stats.pending,
+        rejected: stats.rejected,
+        suspend: stats.suspended,
+        totalProducts: stats.total,
+        totalStock: stats.totalStock,
+        lowStockAlert: stats.lowStockCount,
+        outOfStock: stats.outOfStockCount
+      };
+
+      console.log('[GetSupplierProductStatsService] Response data:', responseData);
+
+      return {
+        success: true,
+        message: 'Statistics retrieved successfully',
+        data: responseData
+      };
+    } catch (error) {
+      console.error('[GetSupplierProductStatsService] Error getting stats:', error);
+      return {
+        success: false,
+        message: `Failed to retrieve statistics: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        data: {
+          approved: 0,
+          pending: 0,
+          rejected: 0,
+          suspend: 0,
+          totalProducts: 0,
+          totalStock: 0,
+          lowStockAlert: 0,
+          outOfStock: 0
+        }
+      };
+    }
   }
 }
 

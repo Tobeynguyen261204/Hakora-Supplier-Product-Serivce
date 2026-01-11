@@ -470,6 +470,111 @@ export class SupplierProductRepository extends Repository<SupplierProductOrm> {
     return this.count({ where: { approvalStatus: ApprovalStatus.PENDING } });
   }
 
+  /**
+   * Get all statistics for a supplier in a single optimized database query
+   * Uses conditional aggregation for maximum performance
+   * This is much more efficient than loading all products into memory
+   * 
+   * @param supplierId - The supplier ID to get stats for
+   * @param lowStockThreshold - Threshold for low stock alert (default: 5)
+   * @returns Aggregated statistics including status counts and inventory metrics
+   */
+  async getAllStatsBySupplierId(
+    supplierId: string,
+    lowStockThreshold: number = 5
+  ): Promise<{
+    approved: number;
+    pending: number;
+    rejected: number;
+    suspended: number;
+    total: number;
+    totalStock: number;
+    lowStockCount: number;
+    outOfStockCount: number;
+  }> {
+    try {
+      // Use string interpolation for enum values (safe as they're constants)
+      // and parameters for user-provided values
+      const queryBuilder = this.createQueryBuilder('product')
+        .select('COUNT(*)', 'total')
+        .addSelect(
+          `COUNT(CASE WHEN product.approvalStatus = '${ApprovalStatus.APPROVED}' AND product.isSuspend = false THEN 1 END)`,
+          'approved'
+        )
+        .addSelect(
+          `COUNT(CASE WHEN product.approvalStatus = '${ApprovalStatus.PENDING}' AND product.isSuspend = false THEN 1 END)`,
+          'pending'
+        )
+        .addSelect(
+          `COUNT(CASE WHEN product.approvalStatus = '${ApprovalStatus.REJECTED}' AND product.isSuspend = false THEN 1 END)`,
+          'rejected'
+        )
+        .addSelect(
+          `COUNT(CASE WHEN product.isSuspend = true THEN 1 END)`,
+          'suspended'
+        )
+        .addSelect(
+          `COALESCE(SUM((product.inventory->>'quantity')::int), 0)`,
+          'totalStock'
+        )
+        .addSelect(
+          `COUNT(CASE WHEN (product.inventory->>'quantity')::int > 0 AND (product.inventory->>'quantity')::int <= :lowStockThreshold THEN 1 END)`,
+          'lowStockCount'
+        )
+        .addSelect(
+          `COUNT(CASE WHEN (product.inventory->>'quantity')::int = 0 THEN 1 END)`,
+          'outOfStockCount'
+        )
+        .where('product.supplierId = :supplierId', { supplierId, lowStockThreshold });
+
+      const result = await queryBuilder.getRawOne();
+
+      // Debug logging
+      console.log('[SupplierProductRepository] Stats query result:', {
+        supplierId,
+        result,
+        resultKeys: result ? Object.keys(result) : [],
+        rawResult: JSON.stringify(result)
+      });
+
+      // TypeORM getRawOne() returns keys as provided in the alias
+      // Handle both possible key formats (lowercase and as-is)
+      const getValue = (key: string): number => {
+        const value = result?.[key] || result?.[key.toLowerCase()] || result?.[key.toUpperCase()] || '0';
+        const parsed = parseInt(String(value), 10);
+        return isNaN(parsed) ? 0 : parsed;
+      };
+
+      const stats = {
+        approved: getValue('approved'),
+        pending: getValue('pending'),
+        rejected: getValue('rejected'),
+        suspended: getValue('suspended'),
+        total: getValue('total'),
+        totalStock: getValue('totalStock'),
+        lowStockCount: getValue('lowStockCount'),
+        outOfStockCount: getValue('outOfStockCount')
+      };
+
+      console.log('[SupplierProductRepository] Parsed stats:', stats);
+
+      return stats;
+    } catch (error) {
+      console.error('[SupplierProductRepository] Error getting stats:', error);
+      // Return zero stats on error
+      return {
+        approved: 0,
+        pending: 0,
+        rejected: 0,
+        suspended: 0,
+        total: 0,
+        totalStock: 0,
+        lowStockCount: 0,
+        outOfStockCount: 0
+      };
+    }
+  }
+
   async updateStatus(ids: string[], status: ProductStatus): Promise<void> {
     await super.update(ids, { status });
   }
