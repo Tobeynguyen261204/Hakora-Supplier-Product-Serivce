@@ -6,7 +6,7 @@ export class ProductListItemView {
     id: string;
 
     @Expose()
-    @FieldRoles('SUPPLIER', 'ADMIN', 'INTERNAL')
+    @FieldRoles('SUPPLIER', 'ADMIN', 'SELLER', 'INTERNAL')
     supplierId: string;
 
     @Expose()
@@ -57,7 +57,7 @@ export class ProductView {
     id: string;
 
     @Expose()
-    @FieldRoles('SUPPLIER', 'ADMIN', 'INTERNAL')
+    @FieldRoles('SUPPLIER', 'ADMIN', 'SELLER', 'INTERNAL')
     supplierId: string;
 
     @Expose()
@@ -109,11 +109,11 @@ export class VariantView {
     sku: string;
 
     @Expose()
-    @FieldRoles('SUPPLIER', 'ADMIN', 'INTERNAL')
+    @FieldRoles('SUPPLIER', 'ADMIN', 'SELLER', 'INTERNAL')
     supplierPrice: number;
 
     @Expose()
-    @FieldRoles('SUPPLIER', 'ADMIN', 'INTERNAL')
+    @FieldRoles('SUPPLIER', 'ADMIN', 'SELLER', 'INTERNAL')
     currency: string;
 
     @Expose()
@@ -124,7 +124,7 @@ export class VariantView {
     attributes: Record<string, any>;
 
     @Expose()
-    @FieldRoles('SUPPLIER', 'ADMIN', 'INTERNAL')
+    @FieldRoles('SUPPLIER', 'ADMIN', 'SELLER', 'INTERNAL')
     inventorySnapshot: number;
 }
 

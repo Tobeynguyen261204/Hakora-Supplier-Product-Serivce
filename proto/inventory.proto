@@ -4,7 +4,7 @@ package inventory;
 
 service InventoryService {
 
-  rpc AddStock(AddStockRequest) returns (AddStockResponse);
+  rpc AddStock(AddStockRequest) returns (StockSnapshot);
 
   rpc ReserveStock(ReserveStockRequest) returns (ReserveStockResponse);
 
@@ -20,11 +20,6 @@ message AddStockRequest {
   string variantId = 1;
   string supplierId = 2;
   int32 quantity = 3;
-}
-
-message AddStockResponse {
-  bool success = 1;
-  StockSnapshot data = 2;
 }
 
 message StockSnapshot {
@@ -44,25 +39,20 @@ message ReserveStockRequest {
 }
 
 message ReserveStockResponse {
-  bool success = 1;
-  string reservationId = 2;
+  string reservationId = 1;
 }
 
 message ConfirmReservationRequest {
   string orderId = 1;
 }
 
-message ConfirmReservationResponse {
-  bool success = 1;
-}
+message ConfirmReservationResponse {}
 
 message ReleaseReservationRequest {
   string orderId = 1;
 }
 
-message ReleaseReservationResponse {
-  bool success = 1;
-}
+message ReleaseReservationResponse {}
 
 message GetAvailableStockRequest {
   string variantId = 1;
