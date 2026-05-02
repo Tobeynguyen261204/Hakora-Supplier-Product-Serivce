@@ -1,7 +1,16 @@
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, OneToMany, Index } from 'typeorm';
+import {
+  Entity,
+  Column,
+  PrimaryGeneratedColumn,
+  CreateDateColumn,
+  UpdateDateColumn,
+  OneToMany,
+  Index,
+} from 'typeorm';
 import { SupplierProductImage } from './supplier-product-image.entity';
 import { SupplierProductVariant } from './supplier-product-variant.entity';
 import { SupplierProductStatus } from './supplier-product-status.enum';
+import { parseWeight } from '../../common/utils/parse-weight.util';
 
 @Entity('supplier_products')
 @Index(['supplierId'])
@@ -9,30 +18,34 @@ import { SupplierProductStatus } from './supplier-product-status.enum';
 @Index(['isFeatured'])
 export class SupplierProduct {
   @PrimaryGeneratedColumn('uuid')
-  id: string;
+  id!: string;
 
   @Column({ type: 'uuid', name: 'supplier_id', nullable: true })
   @Index('idx_supplier_product_supplier_id')
   supplierId?: string;
 
   @Column()
-  name: string;
+  name!: string;
 
   @Column('text')
-  description: string;
+  description!: string;
 
   @Column({ name: 'category_id', type: 'uuid', nullable: true })
-  categoryId: string | null;
+  categoryId?: string | null;
 
-  @Column({ type: 'enum', enum: SupplierProductStatus, default: SupplierProductStatus.DRAFT })
-  status: SupplierProductStatus;
+  @Column({
+    type: 'enum',
+    enum: SupplierProductStatus,
+    default: SupplierProductStatus.DRAFT,
+  })
+  status!: SupplierProductStatus;
 
   // Specifications - JSONB format
   @Column('jsonb', { name: 'specifications' })
   specifications!: Record<string, string>;
 
   @Column('text', { array: true, nullable: true, default: '{}' })
-  tags: string[];
+  tags?: string[];
 
   @Column('decimal', {
     precision: 5,
@@ -40,22 +53,22 @@ export class SupplierProduct {
     name: 'rating_avg',
     nullable: true,
   })
-  ratingAvg: number;
+  ratingAvg?: number;
 
   @Column('int', {
     name: 'rating_count',
     nullable: true,
   })
-  ratingCount: number;
+  ratingCount?: number;
 
   @Column({ default: false, name: 'is_featured' })
   isFeatured!: boolean;
 
   // Relations
-  @OneToMany(() => SupplierProductImage, image => image.product)
+  @OneToMany(() => SupplierProductImage, (image) => image.product)
   images!: SupplierProductImage[];
 
-  @OneToMany(() => SupplierProductVariant, variant => variant.product)
+  @OneToMany(() => SupplierProductVariant, (variant) => variant.product)
   variants!: SupplierProductVariant[];
 
   // Timestamps
@@ -87,13 +100,11 @@ export class SupplierProduct {
   }
 
   // Business logic methods
-  updatePricing(
-    newPrice: {
-      sellerPrice: number;
-      supplierPrice: number;
-      currency?: string;
-    },
-  ): void {
+  updatePricing(newPrice: {
+    sellerPrice: number;
+    supplierPrice: number;
+    currency?: string;
+  }): void {
     if (newPrice.sellerPrice < 0) {
       throw new Error('Seller price cannot be negative');
     }
@@ -126,7 +137,11 @@ export class SupplierProduct {
 
   // Computed properties (similar to SupplierProduct)
   get availableQuantity(): number {
-    return this.variants.reduce((acc, variant) => acc + (variant.inventorySnapshot ?? 0), 0);
+    if (!this.variants || this.variants.length === 0) return 0;
+    return this.variants.reduce(
+      (acc, variant) => acc + (variant.inventorySnapshot ?? 0),
+      0,
+    );
   }
 
   get isInStock(): boolean {
@@ -137,8 +152,6 @@ export class SupplierProduct {
     return this.availableQuantity === 0;
   }
 
-
-
   get hasImages(): boolean {
     return this.images && this.images.length > 0;
   }
@@ -147,7 +160,7 @@ export class SupplierProduct {
     if (!this.images || this.images.length === 0) {
       return undefined;
     }
-    return this.images.find(img => img.isPrimary) || this.images[0];
+    return this.images.find((img) => img.isPrimary) || this.images[0];
   }
 
   toObject() {
@@ -158,8 +171,7 @@ export class SupplierProduct {
       currency: string;
     };
 
-    // ✅ FIX: Check if price exists and is valid
-    if (this.variants.length > 0) {
+    if (this.variants && this.variants.length > 0) {
       // Price is an object
       const supplierPrice = Number(this.variants[0].supplierPrice) || 0;
       priceResponse = {
@@ -167,79 +179,87 @@ export class SupplierProduct {
         currency: this.variants[0].currency || 'VND',
       };
     } else {
-      // Fallback: use priceValue, salesPrice, or calculate from profit
-      const supplierPrice = Number(this.variants[0].supplierPrice) || 0;
+      // Fallback: no variants available
       priceResponse = {
-        supplierPrice: supplierPrice,
+        supplierPrice: 0,
         currency: 'VND',
       };
     }
 
     // Transform inventory for response DTO
-    const inventoryResponse = this.variants.length > 0 ? {
-      quantity: this.variants.reduce((acc, variant) => acc + variant.inventorySnapshot, 0),
-      availableQuantity: this.availableQuantity,
-    } : {
-      quantity: 0,
-      availableQuantity: 0,
-    };
+    const inventoryResponse =
+      this.variants && this.variants.length > 0
+        ? {
+            quantity: this.variants.reduce(
+              (acc, variant) => acc + Number(variant.inventorySnapshot || 0),
+              0,
+            ),
+            availableQuantity: this.availableQuantity,
+          }
+        : {
+            quantity: 0,
+            availableQuantity: 0,
+          };
 
     // Transform specifications for response DTO
-    const specificationsResponse = this.specifications ? {
-      specifications: this.specifications.specifications || {},
-      dimensions: this.specifications.dimensions,
-      weight: this.specifications.weight,
-      materials: this.specifications.materials,
-      colors: this.specifications.colors,
-      sizes: this.specifications.sizes,
-      specificationCount: Object.keys(this.specifications.specifications || {}).length,
-    } : {
-      specifications: {},
-      specificationCount: 0,
-    };
+    const specificationsResponse = this.specifications
+      ? {
+          specifications: this.specifications || {},
+          dimensions: this.specifications['dimensions'] || undefined,
+          weight: parseWeight(this.specifications['weight']),
+          materials: this.specifications['materials'] || undefined,
+          colors: this.specifications['colors'] || undefined,
+          sizes: this.specifications['sizes'] || undefined,
+          specificationCount: Object.keys(this.specifications || {}).length,
+        }
+      : {
+          specifications: {},
+          specificationCount: 0,
+        };
 
     return {
       id: this.id,
-      supplierId: this.supplierId, // ✅ NEW: Include supplierId in response
+      supplierId: this.supplierId,
       name: this.name,
       description: this.description,
       price: priceResponse,
       inventory: inventoryResponse,
       inventoryQuantity: this.availableQuantity,
       specifications: specificationsResponse,
-      images: this.images?.map(img => ({
-        id: img.id,
-        productId: this.id,
-        url: img.url,
-        altText: img.altText,
-        isPrimary: img.isPrimary,
-        sortOrder: img.sortOrder,
-        width: img.width,
-        height: img.height,
-      })) || [],
+      images:
+        this.images?.map((img) => ({
+          id: img.id,
+          productId: this.id,
+          url: img.url,
+          altText: img.altText,
+          isPrimary: img.isPrimary,
+          sortOrder: img.sortOrder,
+          width: img.width,
+          height: img.height,
+        })) || [],
       tags: Array.isArray(this.tags) ? this.tags : [],
       status: this.status,
       isFeatured: this.isFeatured !== undefined ? this.isFeatured : false,
-      // ✅ FIX: Extract weight from specifications if not in separate column, or use separate column
-      weight: this.specifications?.weight
-        ? this.specifications.weight
-        : undefined,
-      // ✅ FIX: Use dimensions from separate column, or extract from specifications
+
+      weight: parseWeight(this.specifications?.weight),
+
       dimensions: this.specifications?.dimensions
         ? this.specifications.dimensions
         : undefined,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
-      primaryImage: this.primaryImage ? {
-        id: this.primaryImage.id,
-        productId: this.id,
-        url: this.primaryImage.url,
-        altText: this.primaryImage.altText,
-        isPrimary: this.primaryImage.isPrimary,
-        sortOrder: this.primaryImage.sortOrder,
-        width: this.primaryImage.width,
-        height: this.primaryImage.height,
-      } : undefined,
+      primaryImage: this.primaryImage
+        ? {
+            id: this.primaryImage.id,
+            productId: this.id,
+            url: this.primaryImage.url,
+            altText: this.primaryImage.altText,
+            isPrimary: this.primaryImage.isPrimary,
+            sortOrder: this.primaryImage.sortOrder,
+            width: this.primaryImage.width,
+            height: this.primaryImage.height,
+          }
+        : undefined,
     };
   }
 }
