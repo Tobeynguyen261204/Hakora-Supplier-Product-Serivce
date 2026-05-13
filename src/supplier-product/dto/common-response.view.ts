@@ -96,6 +96,10 @@ export class ProductView {
 
     @Expose()
     updatedAt: string;
+
+    @Expose()
+    @FieldRoles('SUPPLIER', 'ADMIN', 'SELLER', 'INTERNAL')
+    modelGlbUrl: string;
 }
 
 export class VariantView {

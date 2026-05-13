@@ -51,6 +51,10 @@ export class SupplierProduct {
   @Column({ default: false, name: 'is_featured' })
   isFeatured!: boolean;
 
+  /** HTTPS URL to hosted .glb (or compatible) 3D asset; not stored as BLOB in DB */
+  @Column({ name: 'model_glb_url', type: 'text', nullable: true })
+  modelGlbUrl?: string | null;
+
   // Relations
   @OneToMany(() => SupplierProductImage, image => image.product)
   images!: SupplierProductImage[];

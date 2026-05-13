@@ -60,6 +60,7 @@ message Product {
   bool isFeatured = 11;
   string createdAt = 12;
   string updatedAt = 13;
+  string modelGlbUrl = 14;
 }
 
 message Variant {
@@ -144,6 +145,7 @@ message CreateProductRequest {
   string status = 7;
   repeated ProductImage images = 8;
   repeated CreateProductVariantItem variants = 9;
+  string modelGlbUrl = 10;
 }
 
 message ProductResponse {
@@ -179,6 +181,7 @@ message UpdateProductRequest {
   repeated UpdateProductImagePatchItem images = 7;
   repeated UpdateProductVariantPatchItem variants = 8;
   int32 version = 9; // thêm mới ở cuối
+  string modelGlbUrl = 10;
 }
 
 message CreateVariantRequest {

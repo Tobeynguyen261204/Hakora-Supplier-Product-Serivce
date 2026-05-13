@@ -70,6 +70,7 @@ export class SupplierProductService {
             isFeatured: !!product.isFeatured,
             createdAt: product.createdAt?.toISOString() || new Date().toISOString(),
             updatedAt: product.updatedAt?.toISOString() || new Date().toISOString(),
+            modelGlbUrl: product.modelGlbUrl ?? '',
         };
     }
 
@@ -160,6 +161,7 @@ export class SupplierProductService {
                 tags: dto.tags || [],
                 ratingAvg: 0,
                 ratingCount: 0,
+                modelGlbUrl: dto.modelGlbUrl?.trim() ? dto.modelGlbUrl.trim() : null,
             });
 
             const savedProduct = await productRepo.save(product);
@@ -234,6 +236,10 @@ export class SupplierProductService {
         if (dto.categoryId !== undefined) product.categoryId = dto.categoryId;
         if (dto.specifications !== undefined) product.specifications = dto.specifications;
         if (dto.tags !== undefined) (product as any).tags = dto.tags; // nếu entity có tags
+        if (dto.modelGlbUrl !== undefined) {
+            const t = dto.modelGlbUrl.trim();
+            product.modelGlbUrl = t ? t : null;
+        }
 
         const inventoryDeltas: Array<{ variantId: string; supplierId: string; delta: number }> = [];
         // Transaction để đảm bảo nhất quán khi xử lý images/variants

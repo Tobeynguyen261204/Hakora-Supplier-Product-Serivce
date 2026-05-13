@@ -90,4 +90,8 @@ export class CreateProductDto {
   @ValidateNested({ each: true })
   @Type(() => CreateProductVariantItemDto)
   variants?: CreateProductVariantItemDto[];
+
+  @IsOptional()
+  @IsString()
+  modelGlbUrl?: string;
 }

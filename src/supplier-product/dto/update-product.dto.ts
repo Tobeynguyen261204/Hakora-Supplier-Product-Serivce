@@ -117,4 +117,8 @@ export class UpdateProductDto {
   @ValidateNested({ each: true })
   @Type(() => UpdateProductVariantItemDto)
   variants?: UpdateProductVariantItemDto[];
+
+  @IsOptional()
+  @IsString()
+  modelGlbUrl?: string;
 }

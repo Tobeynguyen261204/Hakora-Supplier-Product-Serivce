@@ -1,0 +1,486 @@
+classDiagram
+    %% Modules
+    class AppModule {
+        +imports: ConfigModule, TypeOrmModule, SupplierProductModule
+    }
+    
+    class SupplierProductModule {
+        +imports: TypeOrmModule
+        +controllers: SupplierProductController
+        +providers: [Services, Mappers, Repository, Guards, Interceptors, Filters, Pipes]
+        +exports: [Repository, FactoryService, BusinessService, UseCaseServices]
+    }
+    
+    %% Controllers
+    class AppController {
+        -appService: AppService
+        +getHello() string
+    }
+    
+    class SupplierProductController {
+        -createSupplierProductService: CreateSupplierProductService
+        -getSupplierProductsService: GetSupplierProductsService
+        -getSupplierProductService: GetSupplierProductService
+        -approveSupplierProductService: ApproveSupplierProductService
+        -rejectSupplierProductService: RejectSupplierProductService
+        -updateSupplierProductService: UpdateSupplierProductService
+        -deleteSupplierProductService: DeleteSupplierProductService
+        -hideSupplierProductService: HideSupplierProductService
+        -suspendSupplierProductService: SuspendSupplierProductService
+        -unhideSupplierProductService: UnhideSupplierProductService
+        -unsuspendSupplierProductService: UnsuspendSupplierProductService
+        -listSupplierProductSellerViewService: ListSupplierProductSellerViewService
+        -getSupplierProductSellerViewService: GetSupplierProductSellerViewService
+        -getSupplierProductStatsService: GetSupplierProductStatsService
+        -getSupplierProductsByIdsService: GetSupplierProductsByIdsService
+        -grpcResponseMapper: GrpcResponseMapper
+        +createSupplierProduct(data: CreateSupplierProductRequest) Promise~GrpcResponse~
+        +getSupplierProduct(data: GetSupplierProductRequest) Promise~GrpcResponse~
+        +getSupplierProducts(data: GetSupplierProductsRequest) Promise~GrpcResponse~
+        +approveSupplierProduct(data: ApproveSupplierProductRequest) Promise~GrpcResponse~
+        +rejectSupplierProduct(data: RejectSupplierProductRequest) Promise~GrpcResponse~
+        +updateSupplierProduct(data: UpdateSupplierProductRequest) Promise~GrpcResponse~
+        +deleteSupplierProduct(data: DeleteSupplierProductRequest) Promise~GrpcResponse~
+        +hideSupplierProduct(data: HideSupplierProductRequest) Promise~GrpcResponse~
+        +suspendSupplierProduct(data: SuspendSupplierProductRequest) Promise~GrpcResponse~
+        +unsuspendSupplierProduct(data: UnsuspendSupplierProductRequest) Promise~GrpcResponse~
+        +unhideSupplierProduct(data: UnhideSupplierProductRequest) Promise~GrpcResponse~
+        +getSupplierProductSellerView(data: GetSupplierProductRequest) Promise~GrpcResponse~
+        +listSellerProducts(data: ListSupplierProductSellerViewRequest) Promise~GrpcResponse~
+        +getSupplierProductStats(data: GetBySupplierIdRequest) Promise~GrpcResponse~
+        +getSupplierProductsByIds(data: GetSupplierProductsByIdsRequest) Promise~GrpcResponse~
+    }
+    
+    %% Services - Use Cases
+    class CreateSupplierProductService {
+        -supplierProductRepository: SupplierProductRepository
+        -supplierProductFactoryService: SupplierProductFactoryService
+        -computedPropertiesService: SupplierProductComputedPropertiesService
+        +execute(request: CreateSupplierProductRequest) Promise~SupplierProductResponseDto~
+        -generateProductId() string
+        -generateImageId() string
+        -validateImages(images: Image[]) void
+    }
+    
+    class GetSupplierProductsService {
+        -supplierProductRepository: SupplierProductRepository
+        -computedPropertiesService: SupplierProductComputedPropertiesService
+        +execute(page: number, limit: number, filters: Filters, supplierId: string) Promise~PaginatedResponse~
+    }
+    
+    class GetSupplierProductService {
+        -supplierProductRepository: SupplierProductRepository
+        -computedPropertiesService: SupplierProductComputedPropertiesService
+        +execute(id: string, supplierId: string) Promise~{success, data}~
+    }
+    
+    class UpdateSupplierProductService {
+        -supplierProductRepository: SupplierProductRepository
+        -supplierProductBusinessService: SupplierProductBusinessService
+        -computedPropertiesService: SupplierProductComputedPropertiesService
+        +execute(request: UpdateSupplierProductRequest) Promise~{success, message, data}~
+    }
+    
+    class DeleteSupplierProductService {
+        -supplierProductRepository: SupplierProductRepository
+        +execute(id: string, supplierId: string) Promise~{success, message}~
+    }
+    
+    class ApproveSupplierProductService {
+        -supplierProductRepository: SupplierProductRepository
+        -supplierProductBusinessService: SupplierProductBusinessService
+        -computedPropertiesService: SupplierProductComputedPropertiesService
+        +execute(id: string, approvedBy: string) Promise~SupplierProductResponseDto~
+    }
+    
+    class RejectSupplierProductService {
+        -supplierProductRepository: SupplierProductRepository
+        -supplierProductBusinessService: SupplierProductBusinessService
+        -computedPropertiesService: SupplierProductComputedPropertiesService
+        +execute(id: string, reason: string, rejectedBy: string) Promise~SupplierProductResponseDto~
+    }
+    
+    class HideSupplierProductService {
+        -supplierProductRepository: SupplierProductRepository
+        -supplierProductBusinessService: SupplierProductBusinessService
+        -computedPropertiesService: SupplierProductComputedPropertiesService
+        +execute(request: HideSupplierProductRequest) Promise~{success, message, data}~
+    }
+    
+    class UnhideSupplierProductService {
+        -supplierProductRepository: SupplierProductRepository
+        -supplierProductBusinessService: SupplierProductBusinessService
+        -computedPropertiesService: SupplierProductComputedPropertiesService
+        +execute(request: UnhideSupplierProductRequest) Promise~{success, message, data}~
+    }
+    
+    class SuspendSupplierProductService {
+        -supplierProductRepository: SupplierProductRepository
+        -supplierProductBusinessService: SupplierProductBusinessService
+        -computedPropertiesService: SupplierProductComputedPropertiesService
+        +execute(id: string, reason: string, suspendedBy: string, duration: number, supplierId: string) Promise~{success, message, data}~
+    }
+    
+    class UnsuspendSupplierProductService {
+        -supplierProductRepository: SupplierProductRepository
+        -supplierProductBusinessService: SupplierProductBusinessService
+        -computedPropertiesService: SupplierProductComputedPropertiesService
+        +execute(id: string, reason: string, unsuspendedBy: string, supplierId: string) Promise~{success, message, data}~
+    }
+    
+    class ListSupplierProductSellerViewService {
+        -supplierProductRepository: SupplierProductRepository
+        -computedPropertiesService: SupplierProductComputedPropertiesService
+        +execute(page: number, limit: number, filters: Filters) Promise~{success, products, total, page, limit, totalPages}~
+    }
+    
+    class GetSupplierProductSellerViewService {
+        -supplierProductRepository: SupplierProductRepository
+        -computedPropertiesService: SupplierProductComputedPropertiesService
+        +execute(id: string) Promise~{success, data}~
+    }
+    
+    class GetSupplierProductStatsService {
+        -supplierProductRepository: SupplierProductRepository
+        +execute(supplierId: string) Promise~{success, data: Stats}~
+    }
+    
+    class GetSupplierProductsByIdsService {
+        -supplierProductRepository: SupplierProductRepository
+        -computedPropertiesService: SupplierProductComputedPropertiesService
+        +execute(productIds: string[], supplierId?: string) Promise~SupplierProductResponseDto[]~
+    }
+    
+    %% Services - Business Logic
+    class SupplierProductFactoryService {
+        +createFromValueObjects(id, supplierId, name, description, sku, categoryName, price: ProductPrice, inventory: ProductInventory, specifications: ProductSpecifications, type, tags, ...) SupplierProductOrm
+        +createFromRequest(id: string, request: CreateSupplierProductRequest, images, reviews) SupplierProductOrm
+        +cloneWithUpdates(original: SupplierProductOrm, updates: Partial~SupplierProductOrm~) SupplierProductOrm
+    }
+    
+    class SupplierProductBusinessService {
+        -factoryService: SupplierProductFactoryService
+        +approve(product: SupplierProductOrm, approvedBy: string) SupplierProductOrm
+        +reject(product: SupplierProductOrm, reason: string, rejectedBy: string) SupplierProductOrm
+        +updatePrice(product: SupplierProductOrm, newPrice: ProductPrice) SupplierProductOrm
+        +updateInventory(product: SupplierProductOrm, newInventory: ProductInventory) SupplierProductOrm
+        +activate(product: SupplierProductOrm) SupplierProductOrm
+        +deactivate(product: SupplierProductOrm) SupplierProductOrm
+        +hide(product: SupplierProductOrm) SupplierProductOrm
+        +suspend(product: SupplierProductOrm) SupplierProductOrm
+        +markAsFeatured(product: SupplierProductOrm) SupplierProductOrm
+        +unmarkAsFeatured(product: SupplierProductOrm) SupplierProductOrm
+        +isApproved(product: SupplierProductOrm) boolean
+        +isPendingApproval(product: SupplierProductOrm) boolean
+        +isRejected(product: SupplierProductOrm) boolean
+        +isActiveAndApproved(product: SupplierProductOrm) boolean
+        +calculateProfitAmount(product: SupplierProductOrm) number
+        +calculateAverageRating(product: SupplierProductOrm) number
+        +getPrimaryImage(product: SupplierProductOrm) ProductImageOrm | undefined
+    }
+    
+    class SupplierProductComputedPropertiesService {
+        +computeAverageRating(product: SupplierProductOrm) number
+        +computeTotalReviews(product: SupplierProductOrm) number
+        +computeIsLowStock(product: SupplierProductOrm) boolean
+        +computeIsOutOfStock(product: SupplierProductOrm) boolean
+        +computePrimaryImageUrl(product: SupplierProductOrm) string | undefined
+        +computeAllComputedProperties(product: SupplierProductOrm) ComputedProperties
+    }
+    
+    %% Repository
+    class SupplierProductRepository {
+        -dataSource: DataSource
+        -imageRepo: Repository~ProductImageOrm~
+        -reviewRepo: Repository~ProductReviewOrm~
+        +save(product: SupplierProductOrm) Promise~SupplierProductOrm~
+        +findById(id: string) Promise~SupplierProductOrm | null~
+        +findBySku(sku: string) Promise~SupplierProductOrm | null~
+        +findBySupplierId(supplierId: string) Promise~SupplierProductOrm[]~
+        +findByStatus(status: ProductStatus) Promise~SupplierProductOrm[]~
+        +findByApprovalStatus(approvalStatus: ApprovalStatus) Promise~SupplierProductOrm[]~
+        +findActive() Promise~SupplierProductOrm[]~
+        +findWithPagination(page, limit, filters) Promise~PaginatedResult~
+        +search(query: string) Promise~SupplierProductOrm[]~
+        +findByIds(productIds: string[]) Promise~SupplierProductOrm[]~
+        +countByStatus(status: ProductStatus) Promise~number~
+        +countBySupplierId(supplierId: string) Promise~number~
+        -toDomain(ormProduct: SupplierProductOrm) SupplierProductOrm
+        -toOrm(product: SupplierProductOrm) SupplierProductOrm
+        -createQueryBuilderWithRelations(alias: string) SelectQueryBuilder
+    }
+    
+    %% Entities
+    class SupplierProductOrm {
+        +id: string
+        +supplierId: string
+        +name: string
+        +description: string
+        +shortDescription?: string
+        +sku: string
+        +categoryName: string
+        +price: {listingPrice, retailPrice, currency}
+        +inventory: {quantity}
+        +specifications: {specifications, dimensions, weight, materials, colors, sizes}
+        +type: string
+        +status: string
+        +approvalStatus: string
+        +tags: string[]
+        +isActive: boolean
+        +isFeatured: boolean
+        +isSuspend: boolean
+        +weight?: number
+        +dimensions?: {length, width, height, unit}
+        +seoData?: {metaTitle, metaDescription, keywords}
+        +createdAt: Date
+        +updatedAt: Date
+        +approvedAt?: Date
+        +approvedBy?: string
+        +rejectionReason?: string
+        +images: ProductImageOrm[]
+        +reviews: ProductReviewOrm[]
+        +availableQuantity: number
+        +isInStock: boolean
+        +isOutOfStock: boolean
+        +reviewCount: number
+        +hasImages: boolean
+    }
+    
+    class ProductImageOrm {
+        +id: string
+        +productId: string
+        +url: string
+        +altText?: string
+        +sortOrder: number
+        +isPrimary: boolean
+        +width?: number
+        +height?: number
+        +fileSize?: number
+        +mimeType?: string
+        +createdAt: Date
+        +updatedAt: Date
+        +product: SupplierProductOrm
+        +create(id, productId, url, altText?, sortOrder?, isPrimary?, width?, height?, fileSize?, mimeType?) ProductImageOrm
+    }
+    
+    class ProductReviewOrm {
+        +id: string
+        +productId: string
+        +customerId: string
+        +rating: number
+        +title?: string
+        +comment?: string
+        +isVerified: boolean
+        +isPublished: boolean
+        +helpfulCount: number
+        +createdAt: Date
+        +updatedAt: Date
+        +product: SupplierProductOrm
+        +create(id, productId, customerId, rating, title?, comment?, isVerified?, isPublished?) ProductReviewOrm
+    }
+    
+    %% Value Objects
+    class ProductPrice {
+        +listingPrice: number
+        +retailPrice: number
+        +currency: string
+        +validate() void
+        +toJSON() {listingPrice, retailPrice, currency}
+    }
+    
+    class ProductInventory {
+        +quantity: number
+        +validate() void
+        +toJSON() {quantity}
+    }
+    
+    class ProductSpecifications {
+        +specifications: Map~string, string~
+        +materials?: string[]
+        +colors?: string[]
+        +sizes?: string[]
+        +validate() void
+        +toJSON() {specifications, materials, colors, sizes, dimensions, weight}
+    }
+    
+    %% Mappers
+    class GrpcRequestMapper {
+        +toCreateRequest(grpcData: any) CreateSupplierProductRequest
+        +toUpdateRequest(grpcData: any) UpdateSupplierProductRequest
+    }
+    
+    class GrpcResponseMapper {
+        +toSuccessResponse(message: string, data: unknown) GrpcResponse
+        +toErrorResponse(error: unknown) GrpcResponse
+        +toPaginatedResponse(message, products, total, page, limit, totalPages, stats?) GrpcResponse
+        +toProductsResponse(message: string, products: SupplierProductResponseDto[]) GrpcResponse
+        +toServiceResponse(serviceResult: ServiceResponse) GrpcResponse
+        +toServicePaginatedResponse(serviceResult: ServiceResponse) GrpcResponse
+        -normalizeEnumsOut(payload: GrpcResponse) GrpcResponse
+    }
+    
+    class SupplierProductMapper {
+        +toResponseDto(product: SupplierProductOrm) SupplierProductResponseDto
+        +toResponseDtoWithComputed(product: SupplierProductOrm, computedService: SupplierProductComputedPropertiesService) SupplierProductResponseDto
+        +toSellerViewDto(product: SupplierProductOrm) SupplierProductSellerViewDto
+    }
+    
+    %% Guards
+    class SupplierProductAccessGuard {
+        -reflector: Reflector
+        +canActivate(context: ExecutionContext) boolean
+        -validateRpcAccess(context: ExecutionContext) boolean
+        -validateHttpAccess(context: ExecutionContext) boolean
+        -checkIfRequiresSupplierScope(context: ExecutionContext) boolean
+    }
+    
+    class SupplierOwnershipGuard {
+        +canActivate(context: ExecutionContext) boolean
+    }
+    
+    %% Interceptors
+    class SupplierContextInterceptor {
+        +intercept(context: ExecutionContext, next: CallHandler) Observable
+    }
+    
+    class SupplierProductLoggingInterceptor {
+        +intercept(context: ExecutionContext, next: CallHandler) Observable
+    }
+    
+    class SupplierProductTransformInterceptor {
+        +intercept(context: ExecutionContext, next: CallHandler) Observable
+    }
+    
+    %% Filters
+    class SupplierProductExceptionFilter {
+        -logger: Logger
+        +catch(exception: any, host: ArgumentsHost) Observable
+        -handleGrpcException(exception: any) Observable
+    }
+    
+    %% Pipes
+    class SupplierProductValidationPipe {
+        +transform(value: any, metadata: ArgumentMetadata) any
+    }
+    
+    %% Services - App
+    class AppService {
+        +getHello() string
+    }
+    
+    %% Module Relationships
+    AppModule --> SupplierProductModule : imports
+    AppModule --> AppController : contains
+    AppModule --> AppService : contains
+    
+    SupplierProductModule --> SupplierProductController : contains
+    SupplierProductModule --> SupplierProductRepository : contains
+    SupplierProductModule --> SupplierProductFactoryService : contains
+    SupplierProductModule --> SupplierProductBusinessService : contains
+    SupplierProductModule --> SupplierProductComputedPropertiesService : contains
+    SupplierProductModule --> SupplierProductAccessGuard : contains
+    SupplierProductModule --> SupplierProductExceptionFilter : contains
+    SupplierProductModule --> SupplierContextInterceptor : contains
+    SupplierProductModule --> SupplierProductLoggingInterceptor : contains
+    SupplierProductModule --> SupplierProductTransformInterceptor : contains
+    SupplierProductModule --> SupplierProductValidationPipe : contains
+    
+    %% Controller-Service Relationships
+    AppController --> AppService : uses
+    SupplierProductController --> CreateSupplierProductService : uses
+    SupplierProductController --> GetSupplierProductsService : uses
+    SupplierProductController --> GetSupplierProductService : uses
+    SupplierProductController --> ApproveSupplierProductService : uses
+    SupplierProductController --> RejectSupplierProductService : uses
+    SupplierProductController --> UpdateSupplierProductService : uses
+    SupplierProductController --> DeleteSupplierProductService : uses
+    SupplierProductController --> HideSupplierProductService : uses
+    SupplierProductController --> UnhideSupplierProductService : uses
+    SupplierProductController --> SuspendSupplierProductService : uses
+    SupplierProductController --> UnsuspendSupplierProductService : uses
+    SupplierProductController --> ListSupplierProductSellerViewService : uses
+    SupplierProductController --> GetSupplierProductSellerViewService : uses
+    SupplierProductController --> GetSupplierProductStatsService : uses
+    SupplierProductController --> GetSupplierProductsByIdsService : uses
+    SupplierProductController --> GrpcResponseMapper : uses
+    
+    %% Service Dependencies
+    CreateSupplierProductService --> SupplierProductRepository : uses
+    CreateSupplierProductService --> SupplierProductFactoryService : uses
+    CreateSupplierProductService --> SupplierProductComputedPropertiesService : uses
+    
+    GetSupplierProductsService --> SupplierProductRepository : uses
+    GetSupplierProductsService --> SupplierProductComputedPropertiesService : uses
+    
+    GetSupplierProductService --> SupplierProductRepository : uses
+    GetSupplierProductService --> SupplierProductComputedPropertiesService : uses
+    
+    UpdateSupplierProductService --> SupplierProductRepository : uses
+    UpdateSupplierProductService --> SupplierProductBusinessService : uses
+    UpdateSupplierProductService --> SupplierProductComputedPropertiesService : uses
+    
+    ApproveSupplierProductService --> SupplierProductRepository : uses
+    ApproveSupplierProductService --> SupplierProductBusinessService : uses
+    ApproveSupplierProductService --> SupplierProductComputedPropertiesService : uses
+    
+    RejectSupplierProductService --> SupplierProductRepository : uses
+    RejectSupplierProductService --> SupplierProductBusinessService : uses
+    RejectSupplierProductService --> SupplierProductComputedPropertiesService : uses
+    
+    HideSupplierProductService --> SupplierProductRepository : uses
+    HideSupplierProductService --> SupplierProductBusinessService : uses
+    HideSupplierProductService --> SupplierProductComputedPropertiesService : uses
+    
+    UnhideSupplierProductService --> SupplierProductRepository : uses
+    UnhideSupplierProductService --> SupplierProductBusinessService : uses
+    UnhideSupplierProductService --> SupplierProductComputedPropertiesService : uses
+    
+    SuspendSupplierProductService --> SupplierProductRepository : uses
+    SuspendSupplierProductService --> SupplierProductBusinessService : uses
+    SuspendSupplierProductService --> SupplierProductComputedPropertiesService : uses
+    
+    UnsuspendSupplierProductService --> SupplierProductRepository : uses
+    UnsuspendSupplierProductService --> SupplierProductBusinessService : uses
+    UnsuspendSupplierProductService --> SupplierProductComputedPropertiesService : uses
+    
+    DeleteSupplierProductService --> SupplierProductRepository : uses
+    
+    ListSupplierProductSellerViewService --> SupplierProductRepository : uses
+    ListSupplierProductSellerViewService --> SupplierProductComputedPropertiesService : uses
+    
+    GetSupplierProductSellerViewService --> SupplierProductRepository : uses
+    GetSupplierProductSellerViewService --> SupplierProductComputedPropertiesService : uses
+    
+    GetSupplierProductStatsService --> SupplierProductRepository : uses
+    
+    GetSupplierProductsByIdsService --> SupplierProductRepository : uses
+    GetSupplierProductsByIdsService --> SupplierProductComputedPropertiesService : uses
+    
+    SupplierProductBusinessService --> SupplierProductFactoryService : uses
+    
+    SupplierProductRepository --> SupplierProductOrm : manages
+    SupplierProductRepository --> ProductImageOrm : manages
+    SupplierProductRepository --> ProductReviewOrm : manages
+    
+    SupplierProductFactoryService --> ProductPrice : uses
+    SupplierProductFactoryService --> ProductInventory : uses
+    SupplierProductFactoryService --> ProductSpecifications : uses
+    
+    %% Entity Relationships
+    SupplierProductOrm "one" --> "many" ProductImageOrm : has
+    SupplierProductOrm "one" --> "many" ProductReviewOrm : has
+    
+    %% Value Object Usage
+    SupplierProductOrm --> ProductPrice : contains
+    SupplierProductOrm --> ProductInventory : contains
+    SupplierProductOrm --> ProductSpecifications : contains
+
+
+
+
+
+
+
+
+
+
