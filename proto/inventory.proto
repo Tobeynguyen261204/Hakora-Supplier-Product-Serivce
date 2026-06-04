@@ -1,0 +1,63 @@
+syntax = "proto3";
+
+package inventory;
+
+service InventoryService {
+
+  rpc AddStock(AddStockRequest) returns (StockSnapshot);
+
+  rpc ReserveStock(ReserveStockRequest) returns (ReserveStockResponse);
+
+  rpc ConfirmReservation(ConfirmReservationRequest) returns (ConfirmReservationResponse);
+
+  rpc ReleaseReservation(ReleaseReservationRequest) returns (ReleaseReservationResponse);
+
+  rpc GetAvailableStock(GetAvailableStockRequest) returns (GetAvailableStockResponse);
+
+}
+
+message AddStockRequest {
+  string variantId = 1;
+  string supplierId = 2;
+  int32 quantity = 3;
+}
+
+message StockSnapshot {
+  string inventoryId = 1;
+  string variantId = 2;
+  string supplierId = 3;
+  int32 quantity = 4;
+  int32 reserved = 5;
+  int32 available = 6;
+  string updatedAt = 7;  // ISO8601
+}
+
+message ReserveStockRequest {
+  string orderId = 1;
+  string variantId = 2;
+  int32 quantity = 3;
+}
+
+message ReserveStockResponse {
+  string reservationId = 1;
+}
+
+message ConfirmReservationRequest {
+  string orderId = 1;
+}
+
+message ConfirmReservationResponse {}
+
+message ReleaseReservationRequest {
+  string orderId = 1;
+}
+
+message ReleaseReservationResponse {}
+
+message GetAvailableStockRequest {
+  string variantId = 1;
+}
+
+message GetAvailableStockResponse {
+  int32 available = 1;
+}
