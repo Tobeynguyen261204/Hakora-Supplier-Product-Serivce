@@ -4,9 +4,9 @@ name: Supplier Product Service CI/CD
 
 on:
   push:
-    branches: [main, master, develop]
+    branches: [main]
   pull_request:
-    branches: [main, master]
+    branches: [main]
   workflow_dispatch:
 
 env:
@@ -38,7 +38,8 @@ jobs:
     name: Deploy to VPS
     needs: ci
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || github.ref == 'refs/heads/develop')
+    # Chỉ deploy production từ nhánh main (develop push = CI only, không đổi VPS)
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     steps:
       - name: Setup SSH
         run: |
