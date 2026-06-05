@@ -115,6 +115,8 @@ export class SupplierProductService {
             name: product.name,
             description: product.description,
             categoryId: product.categoryId || '',
+            tags: product.tags || [],
+            specifications: product.specifications || {},
             status: product.status,
             imageUrl: (product.images || []).find((i) => i.isPrimary)?.url || '',
             totalStock: variants.reduce((acc, variant) => acc + Number(variant.inventorySnapshot || 0), 0),
