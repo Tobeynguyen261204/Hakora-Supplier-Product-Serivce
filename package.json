@@ -11,7 +11,7 @@
     "start": "nest start",
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
-    "start:prod": "node dist/app/main.js",
+    "start:prod": "node dist/main.js",
     "migration:generate": "npx ts-node ./node_modules/typeorm/cli.js migration:generate -d src/supplier-product/database/data-source.ts src/supplier-product/database/migrations/Migration",
     "migration:create": "npx ts-node ./node_modules/typeorm/cli.js migration:create src/supplier-product/database/migrations/Migration",
     "migration:run": "npx ts-node ./node_modules/typeorm/cli.js migration:run -d src/supplier-product/database/data-source.ts",

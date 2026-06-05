@@ -4,35 +4,22 @@ name: Supplier Product Service CI/CD
 
 on:
   push:
-    branches: [main, master]
+    branches: [main]
   pull_request:
-    branches: [main, master]
+    branches: [main]
   workflow_dispatch:
 
 env:
   NODE_VERSION: '20'
-  SERVICE_NAME: 'supplier-product-service'
-  SERVICE_PATH: 'TLCN/supplier-product-service'
+  # Trùng tên PM2 trên VPS Group 2
+  SERVICE_NAME: 'supplier-service'
+  # Folder trên VPS (giữ đúng tên repo: Serivce)
+  SERVICE_PATH: 'Hakora-Supplier-Product-Serivce'
 
 jobs:
   ci:
     name: CI Pipeline
     runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: hakora_test
-        ports:
-          - 5432:5432
-        options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
-      redis:
-        image: redis:7-alpine
-        ports:
-          - 6379:6379
-        options: --health-cmd "redis-cli ping" --health-interval 10s --health-timeout 5s --health-retries 5
 
     steps:
       - uses: actions/checkout@v4
@@ -43,54 +30,78 @@ jobs:
       - run: npm ci --legacy-peer-deps || npm install --legacy-peer-deps
       - run: npm run lint --if-present
         continue-on-error: true
-      - run: npm run build --if-present
-      - run: npm test --if-present
-        continue-on-error: true
+      - run: npm run build
         env:
-          DATABASE_HOST: localhost
-          DATABASE_PORT: 5432
-          DATABASE_USER: postgres
-          DATABASE_PASSWORD: postgres
-          REDIS_HOST: localhost
-          REDIS_PORT: 6379
-          NODE_ENV: test
+          NODE_ENV: production
 
   deploy:
     name: Deploy to VPS
     needs: ci
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    # Chỉ deploy production từ nhánh main (develop push = CI only, không đổi VPS)
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     steps:
       - name: Setup SSH
         run: |
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
-          echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/id_rsa
-          sed -i 's/[[:space:]]*$//' ~/.ssh/id_rsa
-          if [ "$(tail -c 1 ~/.ssh/id_rsa)" != "" ]; then
-            echo "" >> ~/.ssh/id_rsa
-          fi
-          chmod 600 ~/.ssh/id_rsa
-          if ! grep -q "BEGIN.*PRIVATE KEY" ~/.ssh/id_rsa; then
-            echo "Warning: Key format may be incorrect"
-          fi
-          ssh-keyscan -t rsa,ecdsa,ed25519 ${{ secrets.VPS_HOST }} >> ~/.ssh/known_hosts 2>&1 || true
-          chmod 644 ~/.ssh/known_hosts
-          ssh -o StrictHostKeyChecking=no -o BatchMode=yes -i ~/.ssh/id_rsa ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} echo "SSH connection successful" || {
-            echo "SSH connection failed!"
+          printf '%s\n' "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.VPS_HOST }} >> ~/.ssh/known_hosts 2>/dev/null || true
+          ssh -o StrictHostKeyChecking=accept-new \
+            -o BatchMode=yes \
+            -o IdentitiesOnly=yes \
+            -i ~/.ssh/deploy_key \
+            ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} \
+            "echo SSH connection successful" || {
+            echo "::error::SSH failed. Kiểm tra VPS_SSH_KEY và authorized_keys trên VPS Group 2."
             exit 1
           }
 
       - name: Deploy
+        env:
+          DEPLOY_BRANCH: ${{ github.ref_name }}
         run: |
-          ssh -o StrictHostKeyChecking=no -o BatchMode=yes -i ~/.ssh/id_rsa ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} << 'ENDSSH'
-            set -e
-            cd ${{ secrets.VPS_APP_DIR }}/${{ env.SERVICE_PATH }}
-            git fetch origin && git reset --hard origin/main 2>/dev/null || git reset --hard origin/master
-            npm install --legacy-peer-deps
-            npm run build --if-present || true
-            npm run migration:run --if-present || true
-            pm2 restart ${{ env.SERVICE_NAME }} || pm2 start npm --name ${{ env.SERVICE_NAME }} --cwd $(pwd) -- run start:dev
+          APP_DIR="${{ secrets.VPS_APP_DIR }}"
+          SERVICE_PATH="${{ secrets.VPS_SUPPLIER_PATH }}"
+          if [ -z "$SERVICE_PATH" ]; then SERVICE_PATH="${{ env.SERVICE_PATH }}"; fi
+          if [ -z "$APP_DIR" ]; then
+            echo "Missing secret VPS_APP_DIR (e.g. /opt/hakora)"
+            exit 1
+          fi
+          ssh -o StrictHostKeyChecking=accept-new \
+            -o BatchMode=yes \
+            -o IdentitiesOnly=yes \
+            -i ~/.ssh/deploy_key \
+            ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} << ENDSSH
+            set -ex
+            DEPLOY_DIR="${APP_DIR}/${SERVICE_PATH}"
+            DEPLOY_BRANCH="${DEPLOY_BRANCH}"
+            echo ">>> Deploy dir: \${DEPLOY_DIR} branch: \${DEPLOY_BRANCH}"
+            cd "\${DEPLOY_DIR}"
+            if [ ! -d .git ]; then
+              echo "ERROR: Không có .git — clone repo trên VPS trước:"
+              echo "  git clone <repo-url> \${DEPLOY_DIR}"
+              exit 1
+            fi
+            echo ">>> git fetch..."
+            git fetch origin "\${DEPLOY_BRANCH}" || {
+              echo "ERROR: git fetch fail — thêm Deploy Key trên VPS"
+              exit 1
+            }
+            git reset --hard "origin/\${DEPLOY_BRANCH}"
+            echo ">>> npm install..."
+            npm ci --legacy-peer-deps || npm install --legacy-peer-deps
+            echo ">>> build..."
+            npm run build
+            # Migration chạy thủ công trên VPS (npm run migration:run)
+            echo ">>> pm2..."
+            if pm2 describe ${{ env.SERVICE_NAME }} >/dev/null 2>&1; then
+              pm2 restart ${{ env.SERVICE_NAME }}
+            else
+              pm2 start npm --name ${{ env.SERVICE_NAME }} -- run start:prod
+            fi
             pm2 save
-            echo "✓ ${{ env.SERVICE_NAME }} deployed!"
+            pm2 status
+            echo ">>> Done: ${{ env.SERVICE_NAME }}"
           ENDSSH
