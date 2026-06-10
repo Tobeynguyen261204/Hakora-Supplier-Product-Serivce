@@ -33,6 +33,10 @@ service SupplierProductService {
 
   rpc AdminUnsuspendProduct(AdminUnsuspendProductRequest) returns (ProductResponse);
 
+  rpc AdminApproveProduct(AdminApproveProductRequest) returns (ProductResponse);
+
+  rpc AdminRejectProduct(AdminRejectProductRequest) returns (ProductResponse);
+
 
   // ===== Internal APIs =====
 
@@ -241,6 +245,15 @@ message AdminSuspendProductRequest {
 
 message AdminUnsuspendProductRequest {
   string productId = 1;
+}
+
+message AdminApproveProductRequest {
+  string productId = 1;
+}
+
+message AdminRejectProductRequest {
+  string productId = 1;
+  string reason = 2;
 }
 
 

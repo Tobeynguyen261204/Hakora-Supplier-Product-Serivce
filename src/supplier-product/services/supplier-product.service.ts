@@ -783,6 +783,74 @@ export class SupplierProductService {
         return { product: this.formatProductResponse(savedProduct) };
     }
 
+    async adminApproveProduct(productId: string, role: string) {
+        const normalizedRole = (role || '').toUpperCase();
+        if (normalizedRole !== 'ADMIN' && normalizedRole !== 'INTERNAL') {
+            throw new ForbiddenException('You are not authorized to approve products');
+        }
+
+        const product = await this.supplierProductRepository.findOne({
+            where: { id: productId },
+            relations: ['variants', 'images'],
+        });
+
+        if (!product) {
+            throw new NotFoundException('Product not found');
+        }
+
+        if (product.status === SupplierProductStatus.ACTIVE) {
+            return { product: this.formatProductResponse(product) };
+        }
+
+        if (product.status !== SupplierProductStatus.PENDING_REVIEW) {
+            throw new BadRequestException('Only products pending review can be approved');
+        }
+
+        if (!product.variants || product.variants.length === 0) {
+            throw new BadRequestException('Product must have at least one variant to be approved');
+        }
+
+        if (!product.images || product.images.length === 0) {
+            throw new BadRequestException('Product must have at least one image to be approved');
+        }
+
+        product.status = SupplierProductStatus.ACTIVE;
+        const savedProduct = await this.supplierProductRepository.save(product);
+        return { product: this.formatProductResponse(savedProduct) };
+    }
+
+    async adminRejectProduct(productId: string, reason: string, role: string) {
+        const normalizedRole = (role || '').toUpperCase();
+        if (normalizedRole !== 'ADMIN' && normalizedRole !== 'INTERNAL') {
+            throw new ForbiddenException('You are not authorized to reject products');
+        }
+
+        if (!reason || !reason.trim()) {
+            throw new BadRequestException('Rejection reason is required');
+        }
+
+        const product = await this.supplierProductRepository.findOne({
+            where: { id: productId },
+        });
+
+        if (!product) {
+            throw new NotFoundException('Product not found');
+        }
+
+        if (product.status === SupplierProductStatus.REJECTED) {
+            return { product: this.formatProductResponse(product) };
+        }
+
+        if (product.status !== SupplierProductStatus.PENDING_REVIEW) {
+            throw new BadRequestException('Only products pending review can be rejected');
+        }
+
+        product.status = SupplierProductStatus.REJECTED;
+        const savedProduct = await this.supplierProductRepository.save(product);
+        // TODO: persist rejection reason to audit table / event
+        return { product: this.formatProductResponse(savedProduct) };
+    }
+
     // ===== Internal APIs =====
 
     async getVariantsByProductId(productId: string) {
