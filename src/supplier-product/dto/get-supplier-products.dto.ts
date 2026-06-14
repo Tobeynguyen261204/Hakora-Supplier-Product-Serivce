@@ -16,6 +16,16 @@ export class GetSupplierProductsDto {
   statuses?: string[];
 
   @IsOptional()
+  @IsString()
+  @IsUUID()
+  categoryId?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  categoryIds?: string[];
+
+  @IsOptional()
   @IsNumber()
   @Min(1)
   page?: number = 1;

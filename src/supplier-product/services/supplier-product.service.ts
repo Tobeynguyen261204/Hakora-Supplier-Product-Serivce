@@ -570,7 +570,7 @@ export class SupplierProductService {
     }
 
     async getSupplierProducts(dto: GetSupplierProductsDto, role: string, userId: string) {
-        const { supplierId, keyword, statuses, page = 1, limit = 20 } = dto;
+        const { supplierId, keyword, statuses, categoryId, categoryIds, page = 1, limit = 20 } = dto;
         const skip = (page - 1) * limit;
         const where: any = {};
 
@@ -649,6 +649,22 @@ export class SupplierProductService {
         // 3) Keyword + pagination
         if (keyword) {
             where.name = Like(`%${keyword}%`);
+        }
+
+        const scopedCategoryIds = [
+            ...new Set(
+                [
+                    ...(Array.isArray(categoryIds) ? categoryIds : []),
+                    ...(categoryId ? [categoryId] : []),
+                ]
+                    .map((id) => String(id || '').trim())
+                    .filter(Boolean),
+            ),
+        ];
+        if (scopedCategoryIds.length === 1) {
+            where.categoryId = scopedCategoryIds[0];
+        } else if (scopedCategoryIds.length > 1) {
+            where.categoryId = In(scopedCategoryIds);
         }
 
         const [products, total] = await this.supplierProductRepository.findAndCount({

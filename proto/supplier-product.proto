@@ -116,6 +116,8 @@ message GetSupplierProductsRequest {
   repeated string statuses = 3;
   int32 page = 4;
   int32 limit = 5;
+  string categoryId = 6;
+  repeated string categoryIds = 7;
 }
 
 message ProductListResponse {
