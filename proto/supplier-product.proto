@@ -188,6 +188,7 @@ message UpdateProductRequest {
   repeated UpdateProductVariantPatchItem variants = 8;
   int32 version = 9; // thêm mới ở cuối
   string modelGlbUrl = 10;
+  string status = 11;
 }
 
 message CreateVariantRequest {

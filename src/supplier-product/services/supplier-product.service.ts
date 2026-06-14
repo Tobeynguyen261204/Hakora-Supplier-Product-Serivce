@@ -131,6 +131,47 @@ export class SupplierProductService {
         };
     }
 
+    private applySupplierStatusUpdate(
+        product: SupplierProduct,
+        requestedStatus: SupplierProductStatus,
+    ) {
+        const current = product.status;
+        if (requestedStatus === current) {
+            return;
+        }
+
+        const allowedTransitions: Partial<
+            Record<SupplierProductStatus, SupplierProductStatus[]>
+        > = {
+            [SupplierProductStatus.DRAFT]: [
+                SupplierProductStatus.DRAFT,
+                SupplierProductStatus.PENDING_REVIEW,
+            ],
+            [SupplierProductStatus.REJECTED]: [
+                SupplierProductStatus.DRAFT,
+                SupplierProductStatus.PENDING_REVIEW,
+            ],
+            [SupplierProductStatus.ACTIVE]: [
+                SupplierProductStatus.ACTIVE,
+                SupplierProductStatus.HIDDEN,
+                SupplierProductStatus.DISCONTINUED,
+            ],
+            [SupplierProductStatus.HIDDEN]: [
+                SupplierProductStatus.ACTIVE,
+                SupplierProductStatus.HIDDEN,
+            ],
+        };
+
+        const allowed = allowedTransitions[current];
+        if (!allowed || !allowed.includes(requestedStatus)) {
+            throw new BadRequestException(
+                `Cannot change product status from ${current} to ${requestedStatus}`,
+            );
+        }
+
+        product.status = requestedStatus;
+    }
+
     // ===== Supplier APIs =====
 
     async createProduct(dto: CreateProductDto, role: string, userId: string) {
@@ -241,6 +282,25 @@ export class SupplierProductService {
         if (dto.modelGlbUrl !== undefined) {
             const t = dto.modelGlbUrl.trim();
             product.modelGlbUrl = t ? t : null;
+        }
+        if (dto.status !== undefined) {
+            if (dto.status === SupplierProductStatus.PENDING_REVIEW) {
+                const withRelations = await this.supplierProductRepository.findOne({
+                    where: { id: productId },
+                    relations: ['variants', 'images'],
+                });
+                if (!withRelations?.variants?.length) {
+                    throw new BadRequestException(
+                        'Product must have at least one variant to submit for review',
+                    );
+                }
+                if (!withRelations?.images?.length) {
+                    throw new BadRequestException(
+                        'Product must have at least one image to submit for review',
+                    );
+                }
+            }
+            this.applySupplierStatusUpdate(product, dto.status as SupplierProductStatus);
         }
 
         const inventoryDeltas: Array<{ variantId: string; supplierId: string; delta: number }> = [];
