@@ -121,4 +121,13 @@ export class UpdateProductDto {
   @IsOptional()
   @IsString()
   modelGlbUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  modelVideoUrl?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  modelOrbitImageUrls?: string[];
 }

@@ -1,0 +1,163 @@
+@startuml CD-SUP-01b-SupplierProduct-Application
+title Hinh 4.8b - CD-SUP-01b: Supplier Product - Application Layer
+hide empty members
+skinparam classAttributeIconSize 0
+skinparam shadowing false
+skinparam linetype ortho
+skinparam packageStyle rectangle
+skinparam defaultFontName Arial
+skinparam defaultFontSize 50
+skinparam dpi 200
+skinparam nodesep 60
+skinparam ranksep 80
+skinparam titleFontSize 55
+skinparam class {
+  FontSize 50
+  AttributeFontSize 42
+  MethodFontSize 42
+  BorderThickness 3
+  Padding 24
+}
+skinparam package {
+  FontSize 52
+  FontStyle bold
+  BorderThickness 3
+  Padding 20
+}
+skinparam interface {
+  FontSize 42
+}
+skinparam note {
+  FontSize 38
+  BackgroundColor #FFFDE7
+}
+skinparam arrow {
+  Thickness 2
+}
+top to bottom direction
+
+package "Controller Layer" as PKG_CTRL {
+  class SupplierProductController {
+    + getSupplierProducts()
+    + getSupplierProductDetail()
+    + createProduct()
+    + updateProduct()
+    + createVariant()
+    + updateVariant()
+    + addProductImages()
+    + publishProduct()
+    + unpublishProduct()
+    + archiveProduct()
+    + batchGetVariants()
+    + updateInventorySnapshot()
+  }
+}
+
+package "DTO Layer" as PKG_DTO {
+  class CreateProductDto {
+    + name : String
+    + description : String
+    + categoryId : UUID
+    + specifications : Object
+    + tags : String[]
+  }
+  class UpdateProductDto {
+    + name : String
+    + description : String
+    + version : int
+  }
+  class ProductDetailResponseView {
+    + id : UUID
+    + name : String
+    + variants : Object[]
+    + images : Object[]
+  }
+}
+
+package "Service Layer" as PKG_SVC {
+  class SupplierProductService {
+    + getSupplierProducts()
+    + getSupplierProductDetail()
+    + createProduct()
+    + updateProduct()
+    + createVariant()
+    + updateVariant()
+    + addProductImages()
+    + publishProduct()
+    + unpublishProduct()
+    + archiveProduct()
+    + batchGetVariants()
+    + updateInventorySnapshot()
+  }
+}
+
+package "Repository Layer" as PKG_REPO {
+  interface SupplierProductRepository <<interface>> {
+    + save()
+    + findById()
+    + findBySupplierId()
+  }
+  interface SupplierProductVariantRepository <<interface>> {
+    + save()
+    + findByProductId()
+    + findById()
+  }
+}
+
+package "Infrastructure Layer" as PKG_INFRA {
+  interface IInventoryGrpcService <<interface>> {
+    + addStock()
+    + getAvailableStock()
+  }
+  class GrpcAuthGuard {
+    + canActivate()
+  }
+  class RolesGuard {
+    + canActivate()
+  }
+}
+
+class SupplierProductEntityRef <<entityRef>> {
+  Aggregate Root
+}
+
+CreateProductDto -[hidden]down- UpdateProductDto
+UpdateProductDto -[hidden]down- ProductDetailResponseView
+SupplierProductRepository -[hidden]down- SupplierProductVariantRepository
+IInventoryGrpcService -[hidden]down- GrpcAuthGuard
+GrpcAuthGuard -[hidden]down- RolesGuard
+
+PKG_CTRL -[hidden]down- PKG_DTO
+PKG_DTO -[hidden]down- PKG_SVC
+PKG_SVC -[hidden]down- PKG_REPO
+PKG_REPO -[hidden]down- PKG_INFRA
+PKG_INFRA -[hidden]down- SupplierProductEntityRef
+
+SupplierProductController ..> SupplierProductService
+SupplierProductController ..> CreateProductDto
+SupplierProductController ..> UpdateProductDto
+SupplierProductController ..> ProductDetailResponseView
+SupplierProductController ..> GrpcAuthGuard
+
+SupplierProductService ..> CreateProductDto
+SupplierProductService ..> UpdateProductDto
+SupplierProductService ..> ProductDetailResponseView
+SupplierProductService ..> SupplierProductRepository
+SupplierProductService ..> SupplierProductVariantRepository
+SupplierProductService ..> IInventoryGrpcService
+SupplierProductService ..> SupplierProductEntityRef
+
+note right of SupplierProductEntityRef
+  Chi tiet Entity: Hinh 4.8a
+end note
+
+note bottom of SupplierProductController
+  gRPC :50052
+  Consumer: API Gateway, Sales Product
+end note
+
+note bottom of IInventoryGrpcService
+  Inventory Service :50072
+end note
+
+@enduml
