@@ -130,4 +130,14 @@ export class UpdateProductDto {
   @IsArray()
   @IsString({ each: true })
   modelOrbitImageUrls?: string[];
+
+  @IsOptional()
+  @IsIn([
+    'draft',
+    'pending_review',
+    'active',
+    'hidden',
+    'discontinued',
+  ])
+  status?: string;
 }

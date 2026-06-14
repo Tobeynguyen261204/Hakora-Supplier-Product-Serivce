@@ -33,6 +33,10 @@ service SupplierProductService {
 
   rpc AdminUnsuspendProduct(AdminUnsuspendProductRequest) returns (ProductResponse);
 
+  rpc AdminApproveProduct(AdminApproveProductRequest) returns (ProductResponse);
+
+  rpc AdminRejectProduct(AdminRejectProductRequest) returns (ProductResponse);
+
 
   // ===== Internal APIs =====
 
@@ -122,6 +126,8 @@ message GetSupplierProductsRequest {
   repeated string statuses = 3;
   int32 page = 4;
   int32 limit = 5;
+  string categoryId = 6;
+  repeated string categoryIds = 7;
 }
 
 message ProductListResponse {
@@ -195,6 +201,7 @@ message UpdateProductRequest {
   string modelGlbUrl = 10;
   string modelVideoUrl = 11;
   repeated string modelOrbitImageUrls = 12;
+  string status = 13;
 }
 
 message InternalUpdateModel3dRequest {
@@ -266,6 +273,15 @@ message AdminSuspendProductRequest {
 
 message AdminUnsuspendProductRequest {
   string productId = 1;
+}
+
+message AdminApproveProductRequest {
+  string productId = 1;
+}
+
+message AdminRejectProductRequest {
+  string productId = 1;
+  string reason = 2;
 }
 
 
