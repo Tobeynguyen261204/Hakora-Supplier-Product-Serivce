@@ -121,4 +121,14 @@ export class UpdateProductDto {
   @IsOptional()
   @IsString()
   modelGlbUrl?: string;
+
+  @IsOptional()
+  @IsIn([
+    'draft',
+    'pending_review',
+    'active',
+    'hidden',
+    'discontinued',
+  ])
+  status?: string;
 }

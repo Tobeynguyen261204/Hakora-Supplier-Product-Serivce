@@ -33,6 +33,10 @@ service SupplierProductService {
 
   rpc AdminUnsuspendProduct(AdminUnsuspendProductRequest) returns (ProductResponse);
 
+  rpc AdminApproveProduct(AdminApproveProductRequest) returns (ProductResponse);
+
+  rpc AdminRejectProduct(AdminRejectProductRequest) returns (ProductResponse);
+
 
   // ===== Internal APIs =====
 
@@ -112,6 +116,8 @@ message GetSupplierProductsRequest {
   repeated string statuses = 3;
   int32 page = 4;
   int32 limit = 5;
+  string categoryId = 6;
+  repeated string categoryIds = 7;
 }
 
 message ProductListResponse {
@@ -182,6 +188,7 @@ message UpdateProductRequest {
   repeated UpdateProductVariantPatchItem variants = 8;
   int32 version = 9; // thêm mới ở cuối
   string modelGlbUrl = 10;
+  string status = 11;
 }
 
 message CreateVariantRequest {
@@ -241,6 +248,15 @@ message AdminSuspendProductRequest {
 
 message AdminUnsuspendProductRequest {
   string productId = 1;
+}
+
+message AdminApproveProductRequest {
+  string productId = 1;
+}
+
+message AdminRejectProductRequest {
+  string productId = 1;
+  string reason = 2;
 }
 
 

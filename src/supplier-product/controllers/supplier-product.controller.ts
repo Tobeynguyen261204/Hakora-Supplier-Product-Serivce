@@ -17,6 +17,8 @@ import { GetSupplierProductsDto } from '../dto/get-supplier-products.dto';
 import { GetSupplierProductDetailDto } from '../dto/get-supplier-product-detail.dto';
 import { AdminSuspendProductDto } from '../dto/admin-suspend-product.dto';
 import { AdminUnsuspendProductDto } from '../dto/admin-unsuspend-product.dto';
+import { AdminApproveProductDto } from '../dto/admin-approve-product.dto';
+import { AdminRejectProductDto } from '../dto/admin-reject-product.dto';
 import { GetVariantsByProductIdDto } from '../dto/get-variants-by-product-id.dto';
 import { BatchGetVariantsDto } from '../dto/batch-get-variants.dto';
 import { UpdateInventorySnapshotDto } from '../dto/update-inventory-snapshot.dto';
@@ -156,6 +158,26 @@ export class SupplierProductController {
         const dto = await validateDto(AdminUnsuspendProductDto, data);
         const user = extractAuth(metadata);
         return await this.supplierProductService.adminUnsuspendProduct(dto.productId, user.role);
+    }
+
+    @GrpcMethod('SupplierProductService', 'AdminApproveProduct')
+    @Roles('ADMIN')
+    async adminApproveProduct(data: AdminApproveProductDto, metadata: Metadata) {
+        const dto = await validateDto(AdminApproveProductDto, data);
+        const user = extractAuth(metadata);
+        return await this.supplierProductService.adminApproveProduct(dto.productId, user.role);
+    }
+
+    @GrpcMethod('SupplierProductService', 'AdminRejectProduct')
+    @Roles('ADMIN')
+    async adminRejectProduct(data: AdminRejectProductDto, metadata: Metadata) {
+        const dto = await validateDto(AdminRejectProductDto, data);
+        const user = extractAuth(metadata);
+        return await this.supplierProductService.adminRejectProduct(
+            dto.productId,
+            dto.reason,
+            user.role,
+        );
     }
 
     // ===== Internal APIs =====

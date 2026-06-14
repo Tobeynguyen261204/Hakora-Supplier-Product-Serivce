@@ -115,6 +115,8 @@ export class SupplierProductService {
             name: product.name,
             description: product.description,
             categoryId: product.categoryId || '',
+            tags: product.tags || [],
+            specifications: product.specifications || {},
             status: product.status,
             imageUrl: (product.images || []).find((i) => i.isPrimary)?.url || '',
             totalStock: variants.reduce((acc, variant) => acc + Number(variant.inventorySnapshot || 0), 0),
@@ -127,6 +129,47 @@ export class SupplierProductService {
             createdAt: product.createdAt?.toISOString() || new Date().toISOString(),
             updatedAt: product.updatedAt?.toISOString() || new Date().toISOString(),
         };
+    }
+
+    private applySupplierStatusUpdate(
+        product: SupplierProduct,
+        requestedStatus: SupplierProductStatus,
+    ) {
+        const current = product.status;
+        if (requestedStatus === current) {
+            return;
+        }
+
+        const allowedTransitions: Partial<
+            Record<SupplierProductStatus, SupplierProductStatus[]>
+        > = {
+            [SupplierProductStatus.DRAFT]: [
+                SupplierProductStatus.DRAFT,
+                SupplierProductStatus.PENDING_REVIEW,
+            ],
+            [SupplierProductStatus.REJECTED]: [
+                SupplierProductStatus.DRAFT,
+                SupplierProductStatus.PENDING_REVIEW,
+            ],
+            [SupplierProductStatus.ACTIVE]: [
+                SupplierProductStatus.ACTIVE,
+                SupplierProductStatus.HIDDEN,
+                SupplierProductStatus.DISCONTINUED,
+            ],
+            [SupplierProductStatus.HIDDEN]: [
+                SupplierProductStatus.ACTIVE,
+                SupplierProductStatus.HIDDEN,
+            ],
+        };
+
+        const allowed = allowedTransitions[current];
+        if (!allowed || !allowed.includes(requestedStatus)) {
+            throw new BadRequestException(
+                `Cannot change product status from ${current} to ${requestedStatus}`,
+            );
+        }
+
+        product.status = requestedStatus;
     }
 
     // ===== Supplier APIs =====
@@ -239,6 +282,25 @@ export class SupplierProductService {
         if (dto.modelGlbUrl !== undefined) {
             const t = dto.modelGlbUrl.trim();
             product.modelGlbUrl = t ? t : null;
+        }
+        if (dto.status !== undefined) {
+            if (dto.status === SupplierProductStatus.PENDING_REVIEW) {
+                const withRelations = await this.supplierProductRepository.findOne({
+                    where: { id: productId },
+                    relations: ['variants', 'images'],
+                });
+                if (!withRelations?.variants?.length) {
+                    throw new BadRequestException(
+                        'Product must have at least one variant to submit for review',
+                    );
+                }
+                if (!withRelations?.images?.length) {
+                    throw new BadRequestException(
+                        'Product must have at least one image to submit for review',
+                    );
+                }
+            }
+            this.applySupplierStatusUpdate(product, dto.status as SupplierProductStatus);
         }
 
         const inventoryDeltas: Array<{ variantId: string; supplierId: string; delta: number }> = [];
@@ -568,7 +630,7 @@ export class SupplierProductService {
     }
 
     async getSupplierProducts(dto: GetSupplierProductsDto, role: string, userId: string) {
-        const { supplierId, keyword, statuses, page = 1, limit = 20 } = dto;
+        const { supplierId, keyword, statuses, categoryId, categoryIds, page = 1, limit = 20 } = dto;
         const skip = (page - 1) * limit;
         const where: any = {};
 
@@ -647,6 +709,22 @@ export class SupplierProductService {
         // 3) Keyword + pagination
         if (keyword) {
             where.name = Like(`%${keyword}%`);
+        }
+
+        const scopedCategoryIds = [
+            ...new Set(
+                [
+                    ...(Array.isArray(categoryIds) ? categoryIds : []),
+                    ...(categoryId ? [categoryId] : []),
+                ]
+                    .map((id) => String(id || '').trim())
+                    .filter(Boolean),
+            ),
+        ];
+        if (scopedCategoryIds.length === 1) {
+            where.categoryId = scopedCategoryIds[0];
+        } else if (scopedCategoryIds.length > 1) {
+            where.categoryId = In(scopedCategoryIds);
         }
 
         const [products, total] = await this.supplierProductRepository.findAndCount({
@@ -778,6 +856,74 @@ export class SupplierProductService {
         product.status = SupplierProductStatus.ACTIVE;
 
         const savedProduct = await this.supplierProductRepository.save(product);
+        return { product: this.formatProductResponse(savedProduct) };
+    }
+
+    async adminApproveProduct(productId: string, role: string) {
+        const normalizedRole = (role || '').toUpperCase();
+        if (normalizedRole !== 'ADMIN' && normalizedRole !== 'INTERNAL') {
+            throw new ForbiddenException('You are not authorized to approve products');
+        }
+
+        const product = await this.supplierProductRepository.findOne({
+            where: { id: productId },
+            relations: ['variants', 'images'],
+        });
+
+        if (!product) {
+            throw new NotFoundException('Product not found');
+        }
+
+        if (product.status === SupplierProductStatus.ACTIVE) {
+            return { product: this.formatProductResponse(product) };
+        }
+
+        if (product.status !== SupplierProductStatus.PENDING_REVIEW) {
+            throw new BadRequestException('Only products pending review can be approved');
+        }
+
+        if (!product.variants || product.variants.length === 0) {
+            throw new BadRequestException('Product must have at least one variant to be approved');
+        }
+
+        if (!product.images || product.images.length === 0) {
+            throw new BadRequestException('Product must have at least one image to be approved');
+        }
+
+        product.status = SupplierProductStatus.ACTIVE;
+        const savedProduct = await this.supplierProductRepository.save(product);
+        return { product: this.formatProductResponse(savedProduct) };
+    }
+
+    async adminRejectProduct(productId: string, reason: string, role: string) {
+        const normalizedRole = (role || '').toUpperCase();
+        if (normalizedRole !== 'ADMIN' && normalizedRole !== 'INTERNAL') {
+            throw new ForbiddenException('You are not authorized to reject products');
+        }
+
+        if (!reason || !reason.trim()) {
+            throw new BadRequestException('Rejection reason is required');
+        }
+
+        const product = await this.supplierProductRepository.findOne({
+            where: { id: productId },
+        });
+
+        if (!product) {
+            throw new NotFoundException('Product not found');
+        }
+
+        if (product.status === SupplierProductStatus.REJECTED) {
+            return { product: this.formatProductResponse(product) };
+        }
+
+        if (product.status !== SupplierProductStatus.PENDING_REVIEW) {
+            throw new BadRequestException('Only products pending review can be rejected');
+        }
+
+        product.status = SupplierProductStatus.REJECTED;
+        const savedProduct = await this.supplierProductRepository.save(product);
+        // TODO: persist rejection reason to audit table / event
         return { product: this.formatProductResponse(savedProduct) };
     }
 
