@@ -22,6 +22,7 @@ import { UpdateInventorySnapshotDto } from '../dto/update-inventory-snapshot.dto
 import { GetSupplierProductsDto } from '../dto/get-supplier-products.dto';
 import { Metadata } from '@grpc/grpc-js';
 import { ArchiveProductDto } from '../dto/archive-product.dto';
+import { UpdateModel3dDto } from '../dto/update-model-3d.dto';
 
 interface InventoryGrpcService {
     addStock(data: { variantId: string; supplierId: string; quantity: number }): Observable<any>;
@@ -71,6 +72,14 @@ export class SupplierProductService {
             createdAt: product.createdAt?.toISOString() || new Date().toISOString(),
             updatedAt: product.updatedAt?.toISOString() || new Date().toISOString(),
             modelGlbUrl: product.modelGlbUrl ?? '',
+            modelVideoUrl: product.modelVideoUrl ?? '',
+            model3dStatus: product.model3dStatus ?? 'none',
+            model3dJobId: product.model3dJobId ?? '',
+            model3dPosterUrl: product.model3dPosterUrl ?? '',
+            model3dSource: product.model3dSource ?? 'none',
+            model3dError: product.model3dError ?? '',
+            model3dProgress: Number(product.model3dProgress ?? 0),
+            modelOrbitImageUrls: product.modelOrbitImageUrls ?? [],
         };
     }
 
@@ -282,6 +291,41 @@ export class SupplierProductService {
         if (dto.modelGlbUrl !== undefined) {
             const t = dto.modelGlbUrl.trim();
             product.modelGlbUrl = t ? t : null;
+            if (t) {
+                product.model3dSource = 'manual_glb';
+            }
+        }
+        if (dto.modelVideoUrl !== undefined) {
+            const t = dto.modelVideoUrl.trim();
+            product.modelVideoUrl = t ? t : null;
+        }
+        if (dto.modelOrbitImageUrls !== undefined) {
+            const urls = (dto.modelOrbitImageUrls || [])
+                .map((u) => String(u || '').trim())
+                .filter(Boolean);
+            product.modelOrbitImageUrls = urls.length ? urls : null;
+            if (urls.length >= 1 && !product.model3dPosterUrl) {
+                product.model3dPosterUrl = urls[0];
+            }
+            if (urls.length >= 2) {
+                product.model3dSource = 'orbit_images';
+                const generating = ['pending', 'extracting_frames', 'reconstructing', 'optimizing'];
+                if (!generating.includes(String(product.model3dStatus || '').toLowerCase())) {
+                    product.model3dStatus = 'ready';
+                    product.model3dProgress = 100;
+                    product.model3dError = null;
+                }
+            }
+            if (urls.length === 0) {
+                product.modelOrbitImageUrls = null;
+                if (product.model3dSource === 'orbit_images') {
+                    product.model3dSource = 'none';
+                    if (!product.modelGlbUrl) {
+                        product.model3dStatus = 'none';
+                        product.model3dProgress = 0;
+                    }
+                }
+            }
         }
         if (dto.status !== undefined) {
             if (dto.status === SupplierProductStatus.PENDING_REVIEW) {
@@ -928,6 +972,89 @@ export class SupplierProductService {
     }
 
     // ===== Internal APIs =====
+
+    async internalUpdateModel3d(dto: UpdateModel3dDto) {
+        const product = await this.supplierProductRepository.findOne({
+            where: { id: dto.productId },
+        });
+        if (!product) {
+            throw new NotFoundException('Product not found');
+        }
+
+        if (dto.model3dStatus !== undefined) product.model3dStatus = dto.model3dStatus;
+        if (dto.modelGlbUrl !== undefined) {
+            const t = dto.modelGlbUrl.trim();
+            product.modelGlbUrl = t ? t : null;
+        }
+        if (dto.modelVideoUrl !== undefined) {
+            const t = dto.modelVideoUrl.trim();
+            product.modelVideoUrl = t ? t : null;
+        }
+        
+        let shouldAddPosterImage = false;
+        let posterUrl = '';
+        if (dto.model3dPosterUrl !== undefined) {
+            const t = dto.model3dPosterUrl.trim();
+            product.model3dPosterUrl = t ? t : null;
+            if (t && dto.model3dStatus === 'ready') {
+                posterUrl = t;
+                shouldAddPosterImage = true;
+            }
+        }
+        
+        if (dto.model3dJobId !== undefined) {
+            product.model3dJobId = dto.model3dJobId || null;
+        }
+        if (dto.model3dSource !== undefined) product.model3dSource = dto.model3dSource;
+        if (dto.model3dError !== undefined) {
+            product.model3dError = dto.model3dError?.trim() ? dto.model3dError.trim() : null;
+        }
+        if (dto.model3dProgress !== undefined) {
+            product.model3dProgress = Math.max(0, Math.min(100, Number(dto.model3dProgress)));
+        }
+        product.model3dUpdatedAt = new Date();
+
+        const saved = await this.supplierProductRepository.save(product);
+
+        // Auto-add poster image to product images if 3D reconstruction completed
+        if (shouldAddPosterImage && posterUrl) {
+            const existingImages = await this.supplierProductImageRepository.find({
+                where: { product: { id: dto.productId } },
+            });
+            
+            // Check if poster already exists (avoid duplicate)
+            const posterExists = existingImages.some(img => img.url === posterUrl);
+            
+            if (!posterExists) {
+                const maxSortOrder = existingImages.length > 0
+                    ? Math.max(...existingImages.map(img => img.sortOrder || 0))
+                    : -1;
+
+                // Unset existing primary so poster becomes the new primary
+                const currentPrimary = existingImages.filter(img => img.isPrimary);
+                if (currentPrimary.length > 0) {
+                    await this.supplierProductImageRepository.update(
+                        currentPrimary.map(img => img.id),
+                        { isPrimary: false },
+                    );
+                }
+                
+                const posterImage = this.supplierProductImageRepository.create({
+                    product: saved,
+                    url: posterUrl,
+                    altText: '3D Model Poster',
+                    isPrimary: true,
+                    sortOrder: maxSortOrder + 1,
+                    width: 0,
+                    height: 0,
+                });
+                
+                await this.supplierProductImageRepository.save(posterImage);
+            }
+        }
+
+        return { product: this.formatProductResponse(saved) };
+    }
 
     async getVariantsByProductId(productId: string) {
         const product = await this.supplierProductRepository.findOne({

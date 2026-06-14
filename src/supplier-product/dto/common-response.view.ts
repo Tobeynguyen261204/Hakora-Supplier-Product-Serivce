@@ -100,6 +100,38 @@ export class ProductView {
     @Expose()
     @FieldRoles('SUPPLIER', 'ADMIN', 'SELLER', 'INTERNAL')
     modelGlbUrl: string;
+
+    @Expose()
+    @FieldRoles('SUPPLIER', 'ADMIN', 'SELLER', 'INTERNAL')
+    modelVideoUrl: string;
+
+    @Expose()
+    @FieldRoles('SUPPLIER', 'ADMIN', 'SELLER', 'INTERNAL')
+    model3dStatus: string;
+
+    @Expose()
+    @FieldRoles('SUPPLIER', 'ADMIN', 'SELLER', 'INTERNAL')
+    model3dJobId: string;
+
+    @Expose()
+    @FieldRoles('SUPPLIER', 'ADMIN', 'SELLER', 'INTERNAL')
+    model3dPosterUrl: string;
+
+    @Expose()
+    @FieldRoles('SUPPLIER', 'ADMIN', 'SELLER', 'INTERNAL')
+    model3dSource: string;
+
+    @Expose()
+    @FieldRoles('SUPPLIER', 'ADMIN', 'SELLER', 'INTERNAL')
+    model3dError: string;
+
+    @Expose()
+    @FieldRoles('SUPPLIER', 'ADMIN', 'SELLER', 'INTERNAL')
+    model3dProgress: number;
+
+    @Expose()
+    @FieldRoles('SUPPLIER', 'ADMIN', 'SELLER', 'INTERNAL')
+    modelOrbitImageUrls: string[];
 }
 
 export class VariantView {

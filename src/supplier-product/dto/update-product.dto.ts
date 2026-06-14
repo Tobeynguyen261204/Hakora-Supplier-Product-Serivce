@@ -123,6 +123,15 @@ export class UpdateProductDto {
   modelGlbUrl?: string;
 
   @IsOptional()
+  @IsString()
+  modelVideoUrl?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  modelOrbitImageUrls?: string[];
+
+  @IsOptional()
   @IsIn([
     'draft',
     'pending_review',

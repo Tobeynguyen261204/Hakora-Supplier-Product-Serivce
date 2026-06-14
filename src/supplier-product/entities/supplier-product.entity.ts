@@ -68,6 +68,34 @@ export class SupplierProduct {
   @Column({ name: 'model_glb_url', type: 'text', nullable: true })
   modelGlbUrl?: string | null;
 
+  @Column({ name: 'model_video_url', type: 'text', nullable: true })
+  modelVideoUrl?: string | null;
+
+  @Column({ name: 'model_3d_status', type: 'varchar', length: 32, default: 'none' })
+  model3dStatus!: string;
+
+  @Column({ name: 'model_3d_job_id', type: 'varchar', length: 64, nullable: true })
+  model3dJobId?: string | null;
+
+  @Column({ name: 'model_3d_poster_url', type: 'text', nullable: true })
+  model3dPosterUrl?: string | null;
+
+  @Column({ name: 'model_3d_source', type: 'varchar', length: 32, default: 'none' })
+  model3dSource!: string;
+
+  @Column({ name: 'model_3d_error', type: 'text', nullable: true })
+  model3dError?: string | null;
+
+  @Column({ name: 'model_3d_progress', type: 'int', default: 0 })
+  model3dProgress!: number;
+
+  @Column({ name: 'model_3d_updated_at', type: 'timestamptz', nullable: true })
+  model3dUpdatedAt?: Date | null;
+
+  /** 4-angle product photos for orbit 360° viewer (front/right/back/left) */
+  @Column('text', { array: true, nullable: true, name: 'model_orbit_image_urls' })
+  modelOrbitImageUrls?: string[] | null;
+
   // Relations
   @OneToMany(() => SupplierProductImage, (image) => image.product)
   images!: SupplierProductImage[];

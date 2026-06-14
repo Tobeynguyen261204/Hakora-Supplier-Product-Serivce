@@ -1,0 +1,118 @@
+@startuml CD-SUP-01a-SupplierProduct-Entity
+title Hinh 4.8a - CD-SUP-01a: Supplier Product - Entity Layer
+hide empty members
+skinparam classAttributeIconSize 0
+skinparam shadowing false
+skinparam linetype ortho
+skinparam packageStyle rectangle
+skinparam defaultFontName Arial
+skinparam defaultFontSize 50
+skinparam dpi 200
+skinparam nodesep 150
+skinparam ranksep 140
+skinparam titleFontSize 55
+skinparam class {
+  FontSize 50
+  AttributeFontSize 42
+  MethodFontSize 42
+  BorderThickness 3
+  Padding 24
+}
+skinparam package {
+  FontSize 52
+  FontStyle bold
+  BorderThickness 3
+  Padding 20
+}
+skinparam enum {
+  FontSize 42
+}
+skinparam note {
+  FontSize 38
+  BackgroundColor #FFFDE7
+}
+skinparam arrow {
+  Thickness 2
+}
+top to bottom direction
+
+package "Entity Layer" {
+  class SupplierProduct <<entity>> {
+    + id : UUID
+    + supplierId : UUID
+    + name : String
+    + description : String
+    + categoryId : UUID
+    + status : SupplierProductStatus
+    + specifications : Object
+    + tags : String[]
+    + ratingAvg : Decimal
+    + ratingCount : int
+    + isFeatured : Boolean
+    + modelGlbUrl : String
+    + createdAt : DateTime
+    + updatedAt : DateTime
+  }
+
+  class SupplierProductVariant <<entity>> {
+    + id : UUID
+    + productId : UUID
+    + sku : String
+    + supplierPrice : Decimal
+    + currency : String
+    + inventorySnapshot : int
+    + attributes : Object
+  }
+
+  class SupplierProductImage <<entity>> {
+    + id : UUID
+    + productId : UUID
+    + url : String
+    + altText : String
+    + sortOrder : int
+    + isPrimary : Boolean
+    + width : int
+    + height : int
+    + variantId : UUID
+    + createdAt : DateTime
+    + updatedAt : DateTime
+  }
+}
+
+package "Enum Layer" {
+  enum SupplierProductStatus <<enumeration>> {
+    DRAFT
+    PENDING_REVIEW
+    REJECTED
+    ACTIVE
+    HIDDEN
+    OUT_OF_STOCK
+    DISCONTINUED
+    SUSPENDED
+    BANNED
+    ARCHIVED
+  }
+}
+
+' LAYOUT — SupplierProduct = Aggregate Root (center hub)
+'   Variant — Product — Image
+'                |
+'             Status
+SupplierProductVariant -[hidden]right- SupplierProduct
+SupplierProduct -[hidden]right- SupplierProductImage
+SupplierProduct -[hidden]down- SupplierProductStatus
+
+SupplierProduct "1" *-- "0..*" SupplierProductVariant : productId
+SupplierProduct "1" *-- "0..*" SupplierProductImage : productId
+SupplierProduct -down-> SupplierProductStatus : status
+
+note as NOTE_BR
+  Aggregate Root
+  BR-02: supplierId tu JWT
+  BR-03: Publish can >=1 variant + image
+  BR-04: categoryId chi la reference
+end note
+
+SupplierProductImage -[hidden]right- NOTE_BR
+
+@enduml

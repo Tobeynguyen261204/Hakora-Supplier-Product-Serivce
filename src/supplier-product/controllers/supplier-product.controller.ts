@@ -27,6 +27,7 @@ import {
     ProductListResponseView,
 } from '../dto/common-response.view';
 import { ArchiveProductDto } from '../dto/archive-product.dto';
+import { UpdateModel3dDto } from '../dto/update-model-3d.dto';
 import { validateDto } from 'src/common/validation/validate-dto.util';
 import { extractAuth } from 'src/common/auth/grpc-metadata.util';
 
@@ -204,5 +205,12 @@ export class SupplierProductController {
     ) {
         const dto = await validateDto(UpdateInventorySnapshotDto, data);
         return await this.supplierProductService.updateInventorySnapshot(dto);
+    }
+
+    @GrpcMethod('SupplierProductService', 'InternalUpdateModel3d')
+    @Roles('INTERNAL')
+    async internalUpdateModel3d(data: UpdateModel3dDto, metadata: Metadata) {
+        const dto = await validateDto(UpdateModel3dDto, data);
+        return await this.supplierProductService.internalUpdateModel3d(dto);
     }
 }

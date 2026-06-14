@@ -1,0 +1,24 @@
+' ============================================================
+' CD-SUP-01 Supplier Product - Class Diagram (Bao cao A4)
+' ============================================================
+'
+' Hinh 4.8a -> CD-SUP-01a-supplier-product-entity.puml      (A4 NGANG)
+' Hinh 4.8b -> CD-SUP-01b-supplier-product-application.puml (A4 DOC)
+'
+' Draw.io: Insert PlantUML -> copy TU @startuml DEN @enduml
+' Export: PNG 300 DPI
+' Word:  4.8a width 24cm (Landscape) | 4.8b width 16cm (Portrait)
+' ============================================================
+
+@startuml CD-SUP-01-SupplierProduct-Index
+title CD-SUP-01: Supplier Product - Class Diagram
+note as N1
+  Hinh 4.8a - CD-SUP-01a Entity Layer
+  File: CD-SUP-01a-supplier-product-entity.puml
+  Trang Word: A4 Ngang (Landscape)
+
+  Hinh 4.8b - CD-SUP-01b Application Layer
+  File: CD-SUP-01b-supplier-product-application.puml
+  Trang Word: A4 Doc (Portrait)
+end note
+@enduml

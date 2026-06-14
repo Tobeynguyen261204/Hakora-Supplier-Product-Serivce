@@ -45,6 +45,8 @@ service SupplierProductService {
   rpc BatchGetVariants(BatchGetVariantsRequest) returns (VariantListResponse);
 
   rpc UpdateInventorySnapshot(UpdateInventorySnapshotRequest) returns (UpdateInventorySnapshotResponse);
+
+  rpc InternalUpdateModel3d(InternalUpdateModel3dRequest) returns (ProductResponse);
 }
 
 
@@ -65,6 +67,14 @@ message Product {
   string createdAt = 12;
   string updatedAt = 13;
   string modelGlbUrl = 14;
+  string modelVideoUrl = 15;
+  string model3dStatus = 16;
+  string model3dJobId = 17;
+  string model3dPosterUrl = 18;
+  string model3dSource = 19;
+  string model3dError = 20;
+  int32 model3dProgress = 21;
+  repeated string modelOrbitImageUrls = 22;
 }
 
 message Variant {
@@ -152,6 +162,7 @@ message CreateProductRequest {
   repeated ProductImage images = 8;
   repeated CreateProductVariantItem variants = 9;
   string modelGlbUrl = 10;
+  string modelVideoUrl = 11;
 }
 
 message ProductResponse {
@@ -188,7 +199,21 @@ message UpdateProductRequest {
   repeated UpdateProductVariantPatchItem variants = 8;
   int32 version = 9; // thêm mới ở cuối
   string modelGlbUrl = 10;
-  string status = 11;
+  string modelVideoUrl = 11;
+  repeated string modelOrbitImageUrls = 12;
+  string status = 13;
+}
+
+message InternalUpdateModel3dRequest {
+  string productId = 1;
+  string model3dStatus = 2;
+  string modelGlbUrl = 3;
+  string modelVideoUrl = 4;
+  string model3dPosterUrl = 5;
+  string model3dJobId = 6;
+  string model3dSource = 7;
+  string model3dError = 8;
+  int32 model3dProgress = 9;
 }
 
 message CreateVariantRequest {
