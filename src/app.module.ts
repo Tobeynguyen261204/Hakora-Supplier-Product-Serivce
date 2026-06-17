@@ -5,6 +5,7 @@ import { ConfigModule } from '@nestjs/config';
 import { SupplierProductModule } from './supplier-product/supplier-product.module';
 import { getDatabaseConfig } from './supplier-product/database/database.config';
 import { RoleBasedResponseInterceptor } from './common/interceptor/role-based-response.interceptor';
+import { KafkaModule } from './kafka/kafka.module';
 
 @Module({
   imports: [
@@ -13,6 +14,7 @@ import { RoleBasedResponseInterceptor } from './common/interceptor/role-based-re
       envFilePath: ['.env', '.env.development', '.env.production'],
     }),
     TypeOrmModule.forRoot(getDatabaseConfig()),
+    KafkaModule,
     SupplierProductModule,
   ],
   providers: [
