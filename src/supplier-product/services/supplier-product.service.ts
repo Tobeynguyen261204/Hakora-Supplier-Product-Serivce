@@ -293,6 +293,9 @@ export class SupplierProductService {
             product.modelGlbUrl = t ? t : null;
             if (t) {
                 product.model3dSource = 'manual_glb';
+                product.model3dStatus = 'ready';
+                product.model3dProgress = 100;
+                product.model3dError = null;
             }
         }
         if (dto.modelVideoUrl !== undefined) {
