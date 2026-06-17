@@ -19,7 +19,7 @@
     "migration:show": "npx ts-node ./node_modules/typeorm/cli.js migration:show -d src/supplier-product/database/data-source.ts",
     "schema:sync": "typeorm-ts-node-commonjs schema:sync -d src/supplier-product/database/data-source.ts",
     "schema:drop": "typeorm-ts-node-commonjs schema:drop -d src/supplier-product/database/data-source.ts"
-  },  
+  },
   "dependencies": {
     "@grpc/grpc-js": "^1.14.0",
     "@grpc/proto-loader": "^0.8.0",
@@ -43,6 +43,7 @@
     "dotenv": "^17.2.3",
     "express": "^5.1.0",
     "ioredis": "^5.8.0",
+    "kafkajs": "^2.2.4",
     "nodemailer": "^7.0.6",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",

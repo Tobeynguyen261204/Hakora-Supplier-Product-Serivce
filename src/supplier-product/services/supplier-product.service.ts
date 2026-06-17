@@ -23,6 +23,7 @@ import { GetSupplierProductsDto } from '../dto/get-supplier-products.dto';
 import { Metadata } from '@grpc/grpc-js';
 import { ArchiveProductDto } from '../dto/archive-product.dto';
 import { UpdateModel3dDto } from '../dto/update-model-3d.dto';
+import { KafkaProducerService } from '../../kafka/kafka-producer.service';
 
 interface InventoryGrpcService {
     addStock(data: { variantId: string; supplierId: string; quantity: number }): Observable<any>;
@@ -42,6 +43,7 @@ export class SupplierProductService {
         private supplierProductImageRepository: Repository<SupplierProductImage>,
         @Inject('INVENTORY_SERVICE')
         private inventoryClient: ClientGrpc,
+        private readonly kafkaProducer: KafkaProducerService,
     ) { }
 
     async onModuleInit() {
@@ -255,6 +257,20 @@ export class SupplierProductService {
                             }),
                         ),
                     ),
+                );
+
+                // emit Kafka events for each new variant with stock
+                await Promise.allSettled(
+                    savedVariants
+                        .filter((v) => Number(v.inventorySnapshot || 0) > 0)
+                        .map((v) =>
+                            this.kafkaProducer.emitInventoryUpdated({
+                                variantId: v.id,
+                                supplierId: userId,
+                                supplierProductId: savedProduct.id,
+                                quantity: Number(v.inventorySnapshot || 0),
+                            }),
+                        ),
                 );
             }
 
@@ -541,8 +557,67 @@ export class SupplierProductService {
                 ),
         );
 
-        // Load lại product nếu cần để trả view đầy đủ
-        const fresh = await this.supplierProductRepository.findOne({ where: { id: productId } });
+        // Load lại product trước khi emit để có inventorySnapshot mới nhất
+        const fresh = await this.supplierProductRepository.findOne({
+            where: { id: productId },
+            relations: ['variants'],
+        });
+
+        if (fresh) {
+            // Emit inventory.updated cho các variant có stock thay đổi
+            if (inventoryDeltas.length > 0) {
+                const variantMap = new Map((fresh.variants || []).map((v) => [v.id, v]));
+                await Promise.allSettled(
+                    inventoryDeltas
+                        .filter((x) => x.delta !== 0)
+                        .map((x) => {
+                            const variant = variantMap.get(x.variantId);
+                            return this.kafkaProducer.emitInventoryUpdated({
+                                variantId: x.variantId,
+                                supplierId,
+                                supplierProductId: productId,
+                                quantity: Number(variant?.inventorySnapshot ?? 0),
+                            });
+                        }),
+                );
+            }
+
+            // Emit product.updated nếu có thay đổi metadata/giá
+            const hasProductInfoChange = dto.name !== undefined || dto.description !== undefined
+                || dto.categoryId !== undefined || dto.tags !== undefined || dto.specifications !== undefined;
+            const variantsWithPriceChange = (dto.variants as any[] | undefined || [])
+                .filter((v: any) => v.id && v.supplierPrice !== undefined);
+
+            if (hasProductInfoChange || variantsWithPriceChange.length > 0) {
+                const variantMap = new Map((fresh.variants || []).map((v) => [v.id, v]));
+                await this.kafkaProducer.emitProductUpdated({
+                    supplierProductId: productId,
+                    supplierId,
+                    eventType: hasProductInfoChange && variantsWithPriceChange.length > 0
+                        ? 'VARIANT_UPSERT'
+                        : hasProductInfoChange ? 'PRODUCT_INFO' : 'VARIANT_PRICE',
+                    productInfo: hasProductInfoChange ? {
+                        name: dto.name,
+                        description: dto.description,
+                        categoryId: dto.categoryId,
+                        tags: dto.tags as string[] | undefined,
+                        specifications: dto.specifications as Record<string, unknown> | undefined,
+                    } : undefined,
+                    variants: variantsWithPriceChange.map((v: any) => {
+                        const saved = variantMap.get(v.id);
+                        return {
+                            variantId: v.id,
+                            supplierPrice: Number(saved?.supplierPrice ?? v.supplierPrice),
+                            sku: saved?.sku ?? v.sku,
+                            currency: saved?.currency ?? v.currency ?? 'USD',
+                            attributes: saved?.attributes ?? v.attributes,
+                            inventorySnapshot: Number(saved?.inventorySnapshot ?? 0),
+                        };
+                    }),
+                });
+            }
+        }
+
         return { product: this.formatProductResponse(fresh!) };
     }
 
@@ -590,6 +665,7 @@ export class SupplierProductService {
             throw new BadRequestException('Supplier price cannot be negative');
         }
 
+        const oldInventorySnapshot = Number(variant.inventorySnapshot || 0);
         variant.supplierPrice = dto.supplierPrice;
         if (dto.currency) {
             variant.currency = dto.currency;
@@ -598,6 +674,34 @@ export class SupplierProductService {
             variant.inventorySnapshot = dto.inventorySnapshot;
         }
         const savedVariant = await this.supplierProductVariantRepository.save(variant);
+
+        const productId = variant.product?.id;
+
+        // Emit inventory.updated if stock changed
+        if (dto.inventorySnapshot !== undefined && dto.inventorySnapshot !== oldInventorySnapshot) {
+            await this.kafkaProducer.emitInventoryUpdated({
+                variantId: savedVariant.id,
+                supplierId,
+                supplierProductId: productId ?? '',
+                quantity: Number(savedVariant.inventorySnapshot),
+            });
+        }
+
+        // Emit product.updated for price change
+        await this.kafkaProducer.emitProductUpdated({
+            supplierProductId: productId ?? '',
+            supplierId,
+            eventType: 'VARIANT_PRICE',
+            variants: [{
+                variantId: savedVariant.id,
+                supplierPrice: Number(savedVariant.supplierPrice),
+                sku: savedVariant.sku,
+                currency: savedVariant.currency,
+                attributes: savedVariant.attributes,
+                inventorySnapshot: Number(savedVariant.inventorySnapshot),
+            }],
+        });
+
         return { variant: this.formatVariantResponse(savedVariant) };
     }
 
@@ -1106,20 +1210,18 @@ export class SupplierProductService {
 
         // Update local snapshot
         variant.inventorySnapshot = dto.inventory;
-        await this.supplierProductVariantRepository.save(variant);
+        const savedVariant = await this.supplierProductVariantRepository.save(variant);
 
-        // Optionally: Call inventory service to sync
-        try {
-            await firstValueFrom(
-                this.inventoryGrpc.updateInventory({
-                    variantId: dto.variantId,
-                    quantity: dto.inventory,
-                })
-            );
-        } catch (error) {
-            // Log error but don't fail the operation
-            console.error('Failed to sync with inventory service:', error);
-        }
+        // Emit Kafka event so sellers get updated inventorySnapshot
+        const product = await this.supplierProductRepository.findOne({
+            where: { variants: { id: dto.variantId } } as any,
+        });
+        await this.kafkaProducer.emitInventoryUpdated({
+            variantId: dto.variantId,
+            supplierId: product?.supplierId ?? '',
+            supplierProductId: product?.id ?? '',
+            quantity: dto.inventory,
+        });
 
         return { success: true };
     }
